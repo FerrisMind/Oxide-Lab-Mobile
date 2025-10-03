@@ -9,12 +9,14 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.res.painterResource
 import com.oxidelabmobile.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -23,9 +25,15 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import com.oxidelabmobile.ui.theme.Dimensions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +45,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
 import com.oxidelabmobile.ui.theme.Spacing
 import com.oxidelabmobile.DownloadedModel
 
@@ -46,18 +53,26 @@ fun ComposerField(
     onSend: (String) -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    modelName: String = "",
-    modelIconResId: Int = R.drawable.qwen,
+    modelName: String = "Нет модели",
+    modelIconResId: Int = R.drawable.sparkle,
     availableModels: List<DownloadedModel> = emptyList(),
     onModelSelected: (DownloadedModel) -> Unit = {}
 ) {
     var text by remember { mutableStateOf(TextFieldValue("")) }
     var expanded by remember { mutableStateOf(false) }
-
-    Column(
+    
+    // Interaction source для отслеживания фокуса
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+        Column(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = 2.dp,
+                color = if (isFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                shape = RoundedCornerShape(12.dp)
+            )
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(Spacing.Small),
         verticalArrangement = Arrangement.spacedBy(Spacing.Small)
@@ -66,11 +81,28 @@ fun ComposerField(
             value = text,
             onValueChange = { text = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { Text("Опишите задачу...") },
+            placeholder = { 
+                Text(
+                    text = "Опишите задачу...",
+                    style = TextStyle(
+                        color = Color.Gray.copy(alpha = 0.6f), // Тусклый серый цвет
+                        fontStyle = FontStyle.Italic // Курсивный стиль
+                    )
+                ) 
+            },
             singleLine = false,
             minLines = 1,
-            maxLines = 4,
-            textStyle = MaterialTheme.typography.bodyLarge
+            maxLines = 3,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            interactionSource = interactionSource,
+            colors = TextFieldDefaults.colors(
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent,
+                focusedContainerColor = Color.Transparent,
+                unfocusedContainerColor = Color.Transparent,
+                disabledContainerColor = Color.Transparent,
+                errorContainerColor = Color.Transparent
+            )
         )
 
         Row(
@@ -91,7 +123,9 @@ fun ComposerField(
                         containerColor = MaterialTheme.colorScheme.surfaceVariant,
                         contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                     ),
-                    modifier = Modifier.height(48.dp),
+                    modifier = Modifier
+                        .height(48.dp)
+                        .widthIn(min = 200.dp, max = 250.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
                 ) {
                     Row(
@@ -110,8 +144,8 @@ fun ComposerField(
                             maxLines = 1
                         )
                         Icon(
-                            painter = painterResource(id = R.drawable.arrow_down),
-                            contentDescription = "Dropdown arrow",
+                            painter = painterResource(id = R.drawable.caret_up),
+                            contentDescription = "Model selector",
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -119,14 +153,17 @@ fun ComposerField(
                 
                 DropdownMenu(
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
+                    onDismissRequest = { expanded = false },
+                    modifier = Modifier.widthIn(min = 200.dp, max = 250.dp),
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     availableModels.forEach { model ->
                         DropdownMenuItem(
                             text = { 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.Start,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Icon(
                                         painter = painterResource(id = model.iconResId),
@@ -134,7 +171,9 @@ fun ComposerField(
                                         modifier = Modifier.size(20.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
-                                    Column {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(start = 8.dp)
+                                    ) {
                                         Text(
                                             text = model.name,
                                             fontSize = 14.sp,
@@ -174,7 +213,7 @@ fun ComposerField(
                 Icon(
                     painter = painterResource(id = R.drawable.arrow_up),
                     contentDescription = "Send message",
-                    tint = Color(0xFF1B1C3A)
+                    tint = androidx.compose.ui.graphics.Color(0xFF1B1C3A)
                 )
                 }
             }

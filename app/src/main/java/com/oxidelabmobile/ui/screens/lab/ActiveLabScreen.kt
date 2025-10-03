@@ -6,7 +6,11 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -27,13 +31,19 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.size
+import com.oxidelabmobile.R
 import com.oxidelabmobile.ModelDownloader
 import com.oxidelabmobile.DownloadedModel
-import com.oxidelabmobile.R
 import com.oxidelabmobile.ui.components.LabHeader
 import com.oxidelabmobile.ui.components.MessageBubble
 import com.oxidelabmobile.ui.components.MessageContextMenu
@@ -98,7 +108,7 @@ fun ActiveLabScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Fixed drawer width and a fraction that follows drawer progress exactly
-    val drawerWidth = 280.dp
+    val drawerWidth = 256.dp
     var drawerFraction by remember { mutableStateOf(0f) }
 
     // Update drawer fraction based on drawer state
@@ -110,39 +120,106 @@ fun ActiveLabScreen(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet {
-                // Drawer header
-                Text("Меню", modifier = Modifier.padding(Spacing.Medium))
+            ModalDrawerSheet(
+                modifier = Modifier.width(drawerWidth),
+                drawerContainerColor = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Drawer header
+                    Text(
+                        text = "Меню", 
+                        modifier = Modifier.padding(Spacing.Medium),
+                        style = androidx.compose.material3.MaterialTheme.typography.titleLarge
+                    )
 
-                // Menu items
-                TextButton(
-                    onClick = {
-                        coroutineScope.launch { drawerState.close() }
-                        onOpenModelManager()
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.Medium)
-                ) {
-                    Text("Менеджер моделей")
-                }
+                    // Spacer to push menu items to bottom
+                    androidx.compose.foundation.layout.Spacer(modifier = Modifier.weight(1f))
 
-                TextButton(
-                    onClick = {
-                        coroutineScope.launch { drawerState.close() }
-                        showSettingsSheet = true
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.Medium)
-                ) {
-                    Text("Настройки")
-                }
+                    // Menu items aligned to bottom left
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(Spacing.Small)
+                    ) {
+                        TextButton(
+                            onClick = {
+                                coroutineScope.launch { drawerState.close() }
+                                onOpenModelManager()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.Medium)
+                                .height(48.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.Medium, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.folder_simple),
+                                    contentDescription = "Менеджер моделей",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text("Менеджер моделей")
+                            }
+                        }
 
-                TextButton(
-                    onClick = {
-                        coroutineScope.launch { drawerState.close() }
-                        onSettings()
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.Medium)
-                ) {
-                    Text("О программе")
+                        TextButton(
+                            onClick = {
+                                coroutineScope.launch { drawerState.close() }
+                                showSettingsSheet = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.Medium)
+                                .height(48.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.Medium, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.gear_fill),
+                                    contentDescription = "Настройки",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text("Настройки")
+                            }
+                        }
+
+                        TextButton(
+                            onClick = {
+                                coroutineScope.launch { drawerState.close() }
+                                onSettings()
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.Medium)
+                                .height(48.dp),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = Spacing.Medium, vertical = 8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.info),
+                                    contentDescription = "О программе",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text("О программе")
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -224,7 +301,7 @@ fun ActiveLabScreen(
                     onSettings = { showSettingsSheet = true },
                     modifier = Modifier.padding(Spacing.Medium),
                     modelName = selectedModel?.name ?: "Нет модели",
-                    modelIconResId = selectedModel?.iconResId ?: R.drawable.qwen,
+                    modelIconResId = selectedModel?.iconResId ?: R.drawable.sparkle,
                     availableModels = downloadedModels,
                     onModelSelected = { model ->
                         selectedModel = model
