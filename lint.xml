@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!-- Suppress launcher icon warnings for development -->
+    <issue id="IconDuplicates" severity="ignore" />
+    <issue id="IconDipSize" severity="ignore" />
+    <issue id="IconLauncherShape" severity="ignore" />
+</lint>

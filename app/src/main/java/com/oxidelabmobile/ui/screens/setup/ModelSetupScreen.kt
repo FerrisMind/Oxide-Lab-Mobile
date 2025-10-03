@@ -1,18 +1,13 @@
 package com.oxidelabmobile.ui.screens.setup
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -21,67 +16,39 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
-import com.oxidelabmobile.ui.components.OxideProgressBar
-import androidx.compose.ui.res.painterResource
 import com.oxidelabmobile.R
-import com.oxidelabmobile.ui.components.StatusDot
-import com.oxidelabmobile.ui.theme.Dimensions
 import com.oxidelabmobile.ui.theme.OxideLabMobileTheme
 import com.oxidelabmobile.ui.theme.Spacing
-import kotlinx.coroutines.delay
+
+// removed initialization progress and related coroutines
 
 @Composable
 fun ModelSetupScreen(
     onModelLoaded: () -> Unit,
     onCancel: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    openedFromMenu: Boolean = false
 ) {
-    var progress by remember { mutableFloatStateOf(0f) }
-    var stage by remember { mutableStateOf("Анализ модели...") }
-    var isComplete by remember { mutableStateOf(false) }
-    
-    // Simulate loading process
-    LaunchedEffect(Unit) {
-        val stages = listOf(
-            "Анализ модели..." to 0.2f,
-            "Загрузка весов..." to 0.6f,
-            "Инициализация..." to 0.9f,
-            "Готов к работе" to 1.0f
-        )
-        
-        stages.forEach { (stageText, targetProgress) ->
-            stage = stageText
-            while (progress < targetProgress) {
-                delay(100)
-                progress += 0.02f
-            }
-            progress = targetProgress
-            delay(500)
-        }
-        
-        isComplete = true
-        delay(1000)
-        onModelLoaded()
-    }
-    
+    // No automatic initialization progress. Show static model list.
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("oxide_prefs", Context.MODE_PRIVATE) }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
         bottomBar = {
-            if (!isComplete) {
+            if (openedFromMenu) {
+                // Opened from menu: always show Back
                 TextButton(
                     onClick = onCancel,
                     colors = ButtonDefaults.buttonColors(
@@ -91,11 +58,29 @@ fun ModelSetupScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(Spacing.Medium)
+                ) {
+                    Text("Назад")
+                }
+            } else {
+                // Opened from startup flow: always show Skip button
+                TextButton(
+                    onClick = {
+                        prefs.edit().putBoolean("first_launch", false).apply()
+                        // Skip setup and go directly to chat
+                        onModelLoaded()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color(0xFF1B1C3A)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(Spacing.Medium)
                         .semantics {
-                            contentDescription = "Cancel model loading"
+                            contentDescription = "Skip model setup"
                         }
                 ) {
-                    Text("Отмена")
+                    Text("Пропустить")
                 }
             }
         }
@@ -107,23 +92,14 @@ fun ModelSetupScreen(
                 .padding(Spacing.Medium),
             verticalArrangement = Arrangement.spacedBy(Spacing.Large)
         ) {
-            // Progress section
-            OxideProgressBar(
-                progress = progress,
-                stage = stage,
-                progressText = if (!isComplete) {
-                    "Загружено ${(progress * 100).toInt()}% (${(progress * 678).toInt()} MB из 678 MB)"
-                } else null
-            )
-            
             // Available models
             ModelInfoCard(
                 modelName = "Gemma 3",
                 modelSize = "14 GB",
                 parameters = "70B",
                 isCompatible = true,
-                iconRes = R.drawable.gemma,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                iconRes = R.drawable.gemma
             )
 
             ModelInfoCard(
@@ -131,29 +107,11 @@ fun ModelSetupScreen(
                 modelSize = "678 MB",
                 parameters = "175B",
                 isCompatible = true,
-                iconRes = R.drawable.qwen,
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                iconRes = R.drawable.qwen
             )
-            
-            if (isComplete) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Button(
-                        onClick = onModelLoaded,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = Color(0xFF1B1C3A)
-                        ),
-                        modifier = Modifier.semantics {
-                            contentDescription = "Start using the model"
-                        }
-                    ) {
-                        Text("Начать работу")
-                    }
-                }
-            }
+
+            // Start action handled elsewhere; model cards are selectable to begin loading
         }
     }
 }
@@ -164,8 +122,8 @@ private fun ModelInfoCard(
     modelSize: String,
     parameters: String,
     isCompatible: Boolean,
-    iconRes: Int? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    iconRes: Int? = null
 ) {
     Card(
         modifier = modifier,
@@ -191,14 +149,14 @@ private fun ModelInfoCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            
+
             // Model details
             Text(
                 text = "Размер: $modelSize • Параметры: $parameters",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
-            
+
             // Compatibility indicator removed as requested
         }
     }

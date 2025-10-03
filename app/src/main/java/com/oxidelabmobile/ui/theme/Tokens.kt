@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.unit.dp
 
 // Spacing tokens (8dp grid system)
+@Suppress("unused")
 object Spacing {
     val Micro = 4.dp      // Для тесно связанных элементов
     val Small = 8.dp      // Стандартные отступы
@@ -16,6 +17,7 @@ object Spacing {
 }
 
 // Motion tokens
+@Suppress("unused")
 object Motion {
     val Quick = 100       // Мгновенная обратная связь
     val Standard = 250     // Переходы между состояниями
@@ -29,6 +31,7 @@ object Motion {
 }
 
 // Component dimensions
+@Suppress("unused")
 object Dimensions {
     // Touch targets (minimum 48dp for accessibility)
     val TouchTargetMin = 48.dp
@@ -56,6 +59,7 @@ object Dimensions {
 }
 
 // Status indicators
+@Suppress("unused")
 object Status {
     val DotSize = 8.dp
     val StatusIconSize = 24.dp

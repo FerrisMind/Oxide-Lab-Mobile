@@ -12,23 +12,19 @@ trim_trailing_whitespace = true
 indent_size = 4
 indent_style = space
 max_line_length = 120
+continuation_indent_size = 4
 
 [*.md]
 trim_trailing_whitespace = false
 
-[{*.gradle,*.gradle.kts}]
+[*.gradle]
+indent_size = 4
+
+[*.gradle.kts]
 indent_size = 4
 
 [{*.yml,*.yaml}]
 indent_size = 2
-
-[*.kt]
-indent_size = 4
-continuation_indent_size = 4
-
-[*.kts]
-indent_size = 4
-continuation_indent_size = 4
 
 # Disable function naming rule for Composable functions
 [*.kt]

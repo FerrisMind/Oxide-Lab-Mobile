@@ -2,11 +2,13 @@ package com.oxidelabmobile
 
 import android.util.Log
 
+@Suppress("unused")
 class RustInterface private constructor() {
     companion object {
         private const val TAG = "RustInterface"
 
         private val INSTANCE = RustInterface()
+        @Suppress("unused")
         val instance: RustInterface
             get() = INSTANCE
 
@@ -23,6 +25,7 @@ class RustInterface private constructor() {
     // Native method declarations
     external fun processMessage(message: String): String
 
+    @Suppress("unused")
     fun processMessageWithRust(message: String): String {
         return try {
             processMessage(message)

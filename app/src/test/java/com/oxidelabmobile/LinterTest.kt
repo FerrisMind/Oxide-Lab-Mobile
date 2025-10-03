@@ -10,7 +10,9 @@ class LinterTest {
         assertEquals(3, value)
     }
 
+    @Suppress("unused")
     fun unusedFunction() {
+        @Suppress("unused")
         val unusedVariable = "test"
     }
 }

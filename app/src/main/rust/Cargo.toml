@@ -11,12 +11,11 @@ candle-core = { git = "https://github.com/huggingface/candle.git", tag = "0.9.1"
 candle-nn = { git = "https://github.com/huggingface/candle.git", tag = "0.9.1" }
 jni = "0.21"
 
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
 [lib]
 crate-type = ["cdylib"]
-
-[[bin]]
-name = "test_oxide_lab_mobile"
-path = "src/main.rs"
 
 [profile.dev]
 panic = "abort"

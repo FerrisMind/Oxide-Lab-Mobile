@@ -7,9 +7,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.res.painterResource
 import com.oxidelabmobile.R
 import androidx.compose.material3.Icon
@@ -40,8 +37,8 @@ import com.oxidelabmobile.ui.theme.Spacing
 fun ComposerField(
     onSend: (String) -> Unit,
     onSettings: () -> Unit,
-    modelName: String = "",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    modelName: String = ""
 ) {
     var text by remember { mutableStateOf(TextFieldValue("")) }
 

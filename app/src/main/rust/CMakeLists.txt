@@ -11,14 +11,15 @@ if(NOT CARGO_EXECUTABLE)
 endif()
 
 # Set the target directory for the built library
-set(RUST_LIBRARY_TARGET ${CMAKE_CURRENT_BINARY_DIR}/liboxide_lab_mobile.so)
+set(RUST_LIBRARY_TARGET ${RUST_PROJECT_DIR}/target/aarch64-linux-android/release/liboxide_lab_mobile.so)
 
 # Custom command to build the Rust library
 add_custom_command(
     OUTPUT ${RUST_LIBRARY_TARGET}
-    COMMAND ${CARGO_EXECUTABLE} ndk --target aarch64-linux-android --manifest-path ${RUST_PROJECT_DIR}/Cargo.toml -- build --release
+    COMMAND ${CARGO_EXECUTABLE} ndk --target aarch64-linux-android -- build --release
     WORKING_DIRECTORY ${RUST_PROJECT_DIR}
     COMMENT "Building Rust library for Android"
+    DEPENDS ${RUST_PROJECT_DIR}/src/lib.rs ${RUST_PROJECT_DIR}/Cargo.toml
 )
 
 # Custom target for the Rust library

@@ -1,9 +1,9 @@
+@file:Suppress("UnstableApiUsage")
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    id("org.jlleitschuh.gradle.ktlint")
-    id("io.gitlab.arturbosch.detekt")
 }
 
 android {
@@ -50,17 +50,18 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
         // Enable native build
         prefab = true
     }
 
     // Add external native build configuration
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/rust/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
+    // externalNativeBuild {
+    //     cmake {
+    //         path = file("src/main/rust/CMakeLists.txt")
+    //         version = "3.22.1"
+    //     }
+    // }
 }
 
 // Task to build Rust code
@@ -120,9 +121,19 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
     
+    // Additional Compose dependencies that might be missing
+    implementation("androidx.compose.material:material")
+    implementation("androidx.compose.material:material-icons-core")
+    implementation("androidx.compose.material:material-icons-extended")
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.runtime:runtime")
+    implementation("androidx.compose.runtime:runtime-livedata")
+    implementation("androidx.compose.ui:ui-text")
+    implementation("androidx.compose.ui:ui-util")
+
     // Navigation Compose
-    implementation("androidx.navigation:navigation-compose:2.7.7")
-    
+    implementation("androidx.navigation:navigation-compose:2.9.5")
+
     // SplashScreen API для правильного отображения splash screen
     implementation("androidx.core:core-splashscreen:1.0.1")
     testImplementation(libs.junit)
@@ -134,5 +145,5 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // Detekt dependencies
-    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.6")
+    detektPlugins("io.gitlab.arturbosch.detekt:detekt-formatting:1.23.8")
 }

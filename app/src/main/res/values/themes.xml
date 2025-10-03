@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <!-- Основная тема приложения -->
+    <!-- Основная тема приложения для API 29-30 -->
     <style name="Theme.OxideLabMobile" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@drawable/background_gradient</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         
-        <!-- Настройки для splash screen -->
-        <item name="android:windowSplashScreenBackground">@drawable/background_gradient</item>
-        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_adaptive</item>
-        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
-        <item name="android:windowSplashScreenAnimationDuration">1000</item>
+        <!-- Splash screen настройки доступны только для API 31+ -->
+        <!-- Они определены в values-v31/themes.xml -->
     </style>
 </resources>

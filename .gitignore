@@ -16,3 +16,4 @@ local.properties
 .cursor/
 /app/src/main/rust/target
 /app/src/main/rust/*.lock
+/lint

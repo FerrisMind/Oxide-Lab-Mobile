@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Text
 import androidx.compose.material3.MaterialTheme
@@ -30,9 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.oxidelabmobile.ui.components.LabHeader
 import com.oxidelabmobile.ui.components.MessageBubble
 import com.oxidelabmobile.ui.components.MessageContextMenu
@@ -52,7 +48,8 @@ data class ChatMessage(
 fun ActiveLabScreen(
     onThinkingMode: () -> Unit,
     onSettings: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenModelManager: () -> Unit = {}
 ) {
     var messages by remember { mutableStateOf(listOf(
         ChatMessage("Привет! Я готов помочь с анализом данных.", false, "14:30"),
@@ -64,18 +61,18 @@ fun ActiveLabScreen(
     var showContextMenu by remember { mutableStateOf(false) }
     var selectedMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
-    
+
     // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(messages.size - 1)
         }
     }
-    
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
 
-        ModalNavigationDrawer(
+    ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet {
@@ -86,7 +83,7 @@ fun ActiveLabScreen(
                 TextButton(
                     onClick = {
                         coroutineScope.launch { drawerState.close() }
-                        showSettingsSheet = true // reuse settings sheet for model manager
+                        onOpenModelManager()
                     },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.Medium)
                 ) {
@@ -106,7 +103,7 @@ fun ActiveLabScreen(
                 TextButton(
                     onClick = {
                         coroutineScope.launch { drawerState.close() }
-                        // TODO: show About dialog
+                        onSettings()
                     },
                     modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.Medium)
                 ) {
@@ -162,7 +159,7 @@ fun ActiveLabScreen(
                     )
                 }
             }
-            
+
             // Input area
             ComposerField(
                 onSend = { text ->
@@ -188,17 +185,17 @@ fun ActiveLabScreen(
                     }
                 },
                 onSettings = { showSettingsSheet = true },
-                modelName = modelName,
-                modifier = Modifier.padding(Spacing.Medium)
+                modifier = Modifier.padding(Spacing.Medium),
+                modelName = modelName
             )
         }
-        
+
         // Gesture overlays
         ModelSettingsSheet(
             isVisible = showSettingsSheet,
             onDismiss = { showSettingsSheet = false }
         )
-        
+
         MessageContextMenu(
             isVisible = showContextMenu,
             onCopy = {
@@ -210,7 +207,7 @@ fun ActiveLabScreen(
             onRate = {
                 // TODO: Show rating dialog
             },
-            onDismiss = { 
+            onDismiss = {
                 showContextMenu = false
                 selectedMessage = null
             }

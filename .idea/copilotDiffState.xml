@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CopilotDiffPersistence">
+    <option name="pendingDiffs">
+      <map>
+        <entry key="$PROJECT_DIR$/app/src/main/res/drawable/ic_launcher_background.xml">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/app/src/main/res/drawable/ic_launcher_background.xml" />
+              <option name="updatedContent" value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;&#10;&lt;shape xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;&#10;    android:shape=&quot;rectangle&quot;&gt;&#10;    &lt;corners android:radius=&quot;0dp&quot; /&gt;&#10;    &lt;solid android:color=&quot;#4CAF50&quot; /&gt;&#10;&lt;/shape&gt;&#10;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+        <entry key="$PROJECT_DIR$/app/src/main/res/drawable/ic_launcher_foreground.xml">
+          <value>
+            <PendingDiffInfo>
+              <option name="filePath" value="$PROJECT_DIR$/app/src/main/res/drawable/ic_launcher_foreground.xml" />
+              <option name="originalContent" value="&#10;&#10;&#10;&#10;" />
+              <option name="updatedContent" value="&lt;?xml version=&quot;1.0&quot; encoding=&quot;utf-8&quot;?&gt;&#10;&lt;vector xmlns:android=&quot;http://schemas.android.com/apk/res/android&quot;&#10;    android:width=&quot;108dp&quot;&#10;    android:height=&quot;108dp&quot;&#10;    android:viewportWidth=&quot;108&quot;&#10;    android:viewportHeight=&quot;108&quot;&gt;&#10;    &lt;path android:fillColor=&quot;#FF1976D2&quot; android:pathData=&quot;M54,0a54,54 0 1,0 0,108a54,54 0 1,0 0,-108z&quot; /&gt;&#10;    &lt;path android:fillColor=&quot;#FFFFFFFF&quot; android:pathData=&quot;M34,34h40v40h-40z&quot; /&gt;&#10;&lt;/vector&gt;" />
+            </PendingDiffInfo>
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+</project>
