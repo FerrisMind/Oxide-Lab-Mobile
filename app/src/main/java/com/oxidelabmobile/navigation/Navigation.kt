@@ -10,6 +10,7 @@ import com.oxidelabmobile.ui.screens.about.AboutScreen
 import com.oxidelabmobile.ui.screens.empty.EmptyStateScreen
 import com.oxidelabmobile.ui.screens.lab.ActiveLabScreen
 import com.oxidelabmobile.ui.screens.setup.ModelSetupScreen
+import com.oxidelabmobile.ui.screens.setup.ModelSetupScreenNew
 import com.oxidelabmobile.ui.screens.thinking.ThinkingModeScreen
 
 object OxideLabDestinations {
@@ -43,13 +44,9 @@ fun OxideLabNavHost(
             arguments = listOf(navArgument("manual") { type = NavType.BoolType; defaultValue = false })
         ) { backStackEntry ->
             val openedFromMenu = backStackEntry.arguments?.getBoolean("manual") ?: false
-            ModelSetupScreen(
+            ModelSetupScreenNew(
                 onModelLoaded = {
-                    navController.navigate(OxideLabDestinations.ACTIVE_LAB) {
-                        popUpTo(OxideLabDestinations.EMPTY_STATE) {
-                            inclusive = true
-                        }
-                    }
+                    navController.navigate(OxideLabDestinations.ACTIVE_LAB)
                 },
                 onCancel = {
                     navController.popBackStack()

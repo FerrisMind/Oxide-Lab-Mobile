@@ -2,6 +2,7 @@ package com.oxidelabmobile.ui.screens.lab
 
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -29,6 +30,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.platform.LocalContext
+import com.oxidelabmobile.ModelDownloader
+import com.oxidelabmobile.DownloadedModel
+import com.oxidelabmobile.R
 import com.oxidelabmobile.ui.components.LabHeader
 import com.oxidelabmobile.ui.components.MessageBubble
 import com.oxidelabmobile.ui.components.MessageContextMenu
@@ -36,6 +41,12 @@ import com.oxidelabmobile.ui.components.ModelSettingsSheet
 import com.oxidelabmobile.ui.components.ComposerField
 import com.oxidelabmobile.ui.theme.OxideLabMobileTheme
 import com.oxidelabmobile.ui.theme.Spacing
+
+// Новые импорты для синхронного отслеживания прогресса drawer и offset
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.flow.collect
 
 data class ChatMessage(
     val text: String,
@@ -51,13 +62,17 @@ fun ActiveLabScreen(
     modifier: Modifier = Modifier,
     onOpenModelManager: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val modelDownloader = remember { ModelDownloader(context) }
+    
     var messages by remember { mutableStateOf(listOf(
         ChatMessage("Привет! Я готов помочь с анализом данных.", false, "14:30"),
         ChatMessage("Отлично! Можешь объяснить принципы машинного обучения?", true, "14:31")
     ))}
     var showSettingsSheet by remember { mutableStateOf(false) }
     var chatTitle by remember { mutableStateOf("") }
-    var modelName by remember { mutableStateOf("Qwen 3") }
+    var downloadedModels by remember { mutableStateOf<List<DownloadedModel>>(emptyList()) }
+    var selectedModel by remember { mutableStateOf<DownloadedModel?>(null) }
     var showContextMenu by remember { mutableStateOf(false) }
     var selectedMessage by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
@@ -69,8 +84,28 @@ fun ActiveLabScreen(
         }
     }
 
+    // Load downloaded models on startup
+    LaunchedEffect(Unit) {
+        modelDownloader.syncCacheWithFiles()
+        downloadedModels = modelDownloader.getDownloadedModels()
+        // Select first model if available
+        if (downloadedModels.isNotEmpty() && selectedModel == null) {
+            selectedModel = downloadedModels.first()
+        }
+    }
+
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val coroutineScope = rememberCoroutineScope()
+
+    // Fixed drawer width and a fraction that follows drawer progress exactly
+    val drawerWidth = 280.dp
+    var drawerFraction by remember { mutableStateOf(0f) }
+
+    // Update drawer fraction based on drawer state
+    drawerFraction = when (drawerState.targetValue) {
+        DrawerValue.Closed -> 0f
+        DrawerValue.Open -> 1f
+    }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -112,107 +147,115 @@ fun ActiveLabScreen(
             }
         }
     ) {
-        Scaffold(
-            modifier = modifier.fillMaxSize(),
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                LabHeader(
-                    title = if (chatTitle.isBlank()) "Oxide Lab" else chatTitle,
-                    statusText = "",
-                    isOnline = true,
-                    onMenuClick = { coroutineScope.launch { drawerState.open() } },
-                    onSettingsClick = { showSettingsSheet = true }
-                )
-            }
-        ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            // Messages list
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(Spacing.Medium),
-                verticalArrangement = Arrangement.spacedBy(Spacing.Small)
-            ) {
-                items(messages) { message ->
-                    MessageBubble(
-                        text = message.text,
-                        isUser = message.isUser,
-                        timestamp = message.timestamp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .pointerInput(message) {
-                                detectTapGestures(
-                                    onLongPress = {
-                                        if (!message.isUser) {
-                                            selectedMessage = message
-                                            showContextMenu = true
-                                        }
-                                    }
-                                )
-                            }
+        // Смещаем основной контент синхронно с drawerFraction
+        Box(modifier = Modifier.fillMaxSize().offset(x = drawerWidth * drawerFraction)) {
+            Scaffold(
+                modifier = modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
+                topBar = {
+                    LabHeader(
+                        title = if (chatTitle.isBlank()) "Oxide Lab" else chatTitle,
+                        statusText = "",
+                        isOnline = true,
+                        onMenuClick = { coroutineScope.launch { drawerState.open() } },
+                        onSettingsClick = { showSettingsSheet = true }
                     )
                 }
+            ) { paddingValues ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                // Messages list
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(Spacing.Medium),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.Small)
+                ) {
+                    items(messages) { message ->
+                        MessageBubble(
+                            text = message.text,
+                            isUser = message.isUser,
+                            timestamp = message.timestamp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .pointerInput(message) {
+                                    detectTapGestures(
+                                        onLongPress = {
+                                            if (!message.isUser) {
+                                                selectedMessage = message
+                                                showContextMenu = true
+                                            }
+                                        }
+                                    )
+                                }
+                        )
+                    }
+                }
+
+                // Input area
+                ComposerField(
+                    onSend = { text ->
+                        if (text.isNotBlank()) {
+                            val newMessage = ChatMessage(
+                                text = text,
+                                isUser = true,
+                                timestamp = "14:32"
+                            )
+                            // set chat title from first user message
+                            if (chatTitle.isBlank()) {
+                                chatTitle = text.take(30)
+                            }
+
+                            messages = messages + newMessage
+                            // Simulate AI response
+                            val aiResponse = ChatMessage(
+                                text = "Это отличный вопрос! Машинное обучение основано на...",
+                                isUser = false,
+                                timestamp = "14:32"
+                            )
+                            messages = messages + aiResponse
+                        }
+                    },
+                    onSettings = { showSettingsSheet = true },
+                    modifier = Modifier.padding(Spacing.Medium),
+                    modelName = selectedModel?.name ?: "Нет модели",
+                    modelIconResId = selectedModel?.iconResId ?: R.drawable.qwen,
+                    availableModels = downloadedModels,
+                    onModelSelected = { model ->
+                        selectedModel = model
+                    }
+                )
             }
 
-            // Input area
-            ComposerField(
-                onSend = { text ->
-                    if (text.isNotBlank()) {
-                        val newMessage = ChatMessage(
-                            text = text,
-                            isUser = true,
-                            timestamp = "14:32"
-                        )
-                        // set chat title from first user message
-                        if (chatTitle.isBlank()) {
-                            chatTitle = text.take(30)
-                        }
+            // Gesture overlays
+            ModelSettingsSheet(
+                isVisible = showSettingsSheet,
+                onDismiss = { showSettingsSheet = false }
+            )
 
-                        messages = messages + newMessage
-                        // Simulate AI response
-                        val aiResponse = ChatMessage(
-                            text = "Это отличный вопрос! Машинное обучение основано на...",
-                            isUser = false,
-                            timestamp = "14:32"
-                        )
-                        messages = messages + aiResponse
-                    }
+            MessageContextMenu(
+                isVisible = showContextMenu,
+                onCopy = {
+                    // TODO: Copy message to clipboard
                 },
-                onSettings = { showSettingsSheet = true },
-                modifier = Modifier.padding(Spacing.Medium),
-                modelName = modelName
+                onContinue = {
+                    // TODO: Continue conversation with this context
+                },
+                onRate = {
+                    // TODO: Show rating dialog
+                },
+                onDismiss = {
+                    showContextMenu = false
+                    selectedMessage = null
+                }
             )
         }
-
-        // Gesture overlays
-        ModelSettingsSheet(
-            isVisible = showSettingsSheet,
-            onDismiss = { showSettingsSheet = false }
-        )
-
-        MessageContextMenu(
-            isVisible = showContextMenu,
-            onCopy = {
-                // TODO: Copy message to clipboard
-            },
-            onContinue = {
-                // TODO: Continue conversation with this context
-            },
-            onRate = {
-                // TODO: Show rating dialog
-            },
-            onDismiss = {
-                showContextMenu = false
-                selectedMessage = null
-            }
-        )
-    }
+        }
     }
 }
 

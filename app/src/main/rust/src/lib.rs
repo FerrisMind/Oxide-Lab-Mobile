@@ -3,7 +3,18 @@ use log::*;
 
 pub mod chatbot;
 pub mod jni_bridge;
+pub mod tests;
 use chatbot::ChatBot;
+
+/// Initialize logging for Android
+pub fn init_logging() {
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Info)
+            .with_tag("oxide_lab_mobile"),
+    );
+    info!("Rust logging initialized for Oxide Lab Mobile");
+}
 
 #[no_mangle]
 fn android_main(app: AndroidApp) {
@@ -29,12 +40,9 @@ fn android_main(app: AndroidApp) {
                 }
                 android_activity::PollEvent::Main(main_event) => {
                     info!("Main event: {:?}", main_event);
-                    match main_event {
-                        android_activity::MainEvent::Destroy => {
-                            info!("Application destroyed");
-                            return;
-                        }
-                        _ => {}
+                    if let android_activity::MainEvent::Destroy = main_event {
+                        info!("Application destroyed");
+                        return;
                     }
                 }
                 _ => {}

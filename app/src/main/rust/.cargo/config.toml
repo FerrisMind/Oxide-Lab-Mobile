@@ -13,3 +13,4 @@ ar = "x86_64-linux-android-ar"
 [target.i686-linux-android]
 linker = "i686-linux-android21-clang"
 ar = "i686-linux-android-ar"
+

@@ -1,5 +1,7 @@
 @file:Suppress("UnstableApiUsage")
 
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -45,9 +47,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+
+    // Используем современный DSL для задания jvmTarget
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(JvmTarget.JVM_11)
+        }
     }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -74,14 +81,13 @@ tasks.register<Exec>("buildRust") {
         "aarch64-linux-android",
         "--",
         "build",
-        "--release",
     )
 }
 
 // Task to copy the built Rust library to jniLibs
 tasks.register<Copy>("copyRustLib") {
     dependsOn("buildRust")
-    from("src/main/rust/target/aarch64-linux-android/release/liboxide_lab_mobile.so")
+    from("src/main/rust/target/aarch64-linux-android/debug/liboxide_lab_mobile.so")
     into("src/main/jniLibs/arm64-v8a")
 }
 
@@ -120,7 +126,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
-    
+
     // Additional Compose dependencies that might be missing
     implementation("androidx.compose.material:material")
     implementation("androidx.compose.material:material-icons-core")
@@ -136,6 +142,9 @@ dependencies {
 
     // SplashScreen API для правильного отображения splash screen
     implementation("androidx.core:core-splashscreen:1.0.1")
+    
+    // OkHttp для стабильной HTTP загрузки моделей на Android
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

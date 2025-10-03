@@ -10,6 +10,7 @@ android-activity = { version = "0.5", features = [ "native-activity" ] }
 candle-core = { git = "https://github.com/huggingface/candle.git", tag = "0.9.1" }
 candle-nn = { git = "https://github.com/huggingface/candle.git", tag = "0.9.1" }
 jni = "0.21"
+hf-hub = { version = "0.4", default-features = false, features = ["ureq", "rustls-tls"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
@@ -18,7 +19,10 @@ jni = "0.21"
 crate-type = ["cdylib"]
 
 [profile.dev]
-panic = "abort"
+panic = "unwind"
+debug = true
+opt-level = 0
 
 [profile.release]
-panic = "abort"
+panic = "unwind"
+debug = true
