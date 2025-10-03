@@ -1,0 +1,25 @@
+[package]
+name = "oxide_lab_mobile"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4"
+android_logger = "0.13"
+android-activity = { version = "0.5", features = [ "native-activity" ] }
+candle-core = { git = "https://github.com/huggingface/candle.git", tag = "0.9.1" }
+candle-nn = { git = "https://github.com/huggingface/candle.git", tag = "0.9.1" }
+jni = "0.21"
+
+[lib]
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "test_oxide_lab_mobile"
+path = "src/main.rs"
+
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"

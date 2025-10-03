@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<font-family xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Используем системные шрифты с правильными весами -->
+    <!-- Inter Regular -->
+    <font
+        android:fontStyle="normal"
+        android:fontWeight="400" />
+    
+    <!-- Inter Medium -->
+    <font
+        android:fontStyle="normal"
+        android:fontWeight="500" />
+    
+    <!-- Inter SemiBold -->
+    <font
+        android:fontStyle="normal"
+        android:fontWeight="600" />
+    
+    <!-- Inter Bold -->
+    <font
+        android:fontStyle="normal"
+        android:fontWeight="700" />
+    
+    <!-- Inter ExtraBold -->
+    <font
+        android:fontStyle="normal"
+        android:fontWeight="800" />
+    
+    <!-- Inter Black -->
+    <font
+        android:fontStyle="normal"
+        android:fontWeight="900" />
+</font-family>

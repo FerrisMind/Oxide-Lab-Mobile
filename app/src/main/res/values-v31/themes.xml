@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тема для Android 12+ с правильными настройками splash screen -->
+    <style name="Theme.OxideLabMobile" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@drawable/background_gradient</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        
+        <!-- Настройки для splash screen Android 12+ -->
+        <item name="android:windowSplashScreenBackground">@drawable/background_gradient</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_icon_adaptive</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@android:color/transparent</item>
+        <item name="android:windowSplashScreenAnimationDuration">1000</item>
+    </style>
+</resources>
