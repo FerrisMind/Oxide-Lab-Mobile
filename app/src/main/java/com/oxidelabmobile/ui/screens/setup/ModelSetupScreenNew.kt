@@ -350,7 +350,7 @@ fun ModelSetupScreenNew(
                     Icon(
                         painter = painterResource(id = R.drawable.gemma),
                         contentDescription = "Gemma Icon",
-                        modifier = Modifier.size(32.dp),
+                        modifier = Modifier.size(24.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(

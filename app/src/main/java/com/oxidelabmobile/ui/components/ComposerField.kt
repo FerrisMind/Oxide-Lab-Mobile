@@ -101,7 +101,7 @@ fun ComposerField(
                         Icon(
                             painter = painterResource(id = modelIconResId),
                             contentDescription = "Model logo",
-                            modifier = Modifier.size(if (modelIconResId == com.oxidelabmobile.R.drawable.gemma) 32.dp else 24.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Text(
                             text = modelName,
@@ -131,7 +131,7 @@ fun ComposerField(
                                     Icon(
                                         painter = painterResource(id = model.iconResId),
                                         contentDescription = "${model.name} Icon",
-                                        modifier = Modifier.size(if (model.iconResId == com.oxidelabmobile.R.drawable.gemma) 28.dp else 20.dp),
+                                        modifier = Modifier.size(20.dp),
                                         tint = MaterialTheme.colorScheme.primary
                                     )
                                     Column {
