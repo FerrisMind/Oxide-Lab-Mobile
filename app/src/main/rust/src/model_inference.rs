@@ -222,7 +222,11 @@ impl InferenceEngine {
             cb.on_complete();
         }
 
-        log::info!("Qwen3 - Generated {} tokens, result length: {}", all_tokens.len() - tokens.len(), generated_text.len());
+        log::info!(
+            "Qwen3 - Generated {} tokens, result length: {}",
+            all_tokens.len() - tokens.len(),
+            generated_text.len()
+        );
         log::info!("Qwen3 - Final result: '{}'", generated_text);
 
         Ok(generated_text)
@@ -366,35 +370,67 @@ impl InferenceEngine {
     }
 }
 
+/// Структура для представления сообщения в чате
+#[derive(serde::Serialize)]
+struct ChatMessage {
+    role: String,
+    content: String,
+}
+
 /// Применяет chat template для форматирования сообщения пользователя.
-/// Пока реализуем простую версию, в будущем можно добавить поддержку Jinja2.
+/// Использует MiniJinja для полноценной поддержки Jinja2 шаблонов.
 fn apply_chat_template(chat_template: &str, user_message: &str) -> Result<String, InferenceError> {
     log::info!("Applying chat template: {}", chat_template);
 
-    // Для простоты используем базовое форматирование
-    // В будущем можно добавить полноценный парсер Jinja2 шаблонов
+    use minijinja::{Environment, context};
 
+    // Создаем окружение MiniJinja
+    let mut env = Environment::new();
+
+    // Проверяем, является ли это Jinja2 шаблоном
     if chat_template.contains("{{messages}}") || chat_template.contains("{%") {
-        // Это Jinja2 шаблон - пока возвращаем сообщение без изменений
-        // TODO: реализовать полноценный парсер Jinja2
-        log::warn!("Jinja2 chat template detected but not fully supported yet, using default format");
+        // Создаем список сообщений для шаблона
+        let messages = vec![
+            ChatMessage {
+                role: "system".to_string(),
+                content: "You are a helpful assistant.".to_string(),
+            },
+            ChatMessage {
+                role: "user".to_string(),
+                content: user_message.to_string(),
+            },
+        ];
 
-        // Попробуем базовое форматирование для Qwen моделей
-        let system_message = "You are a helpful assistant.";
-        let formatted = format!(
-            "<|im_start|>system\n{}\n<|im_end|>\n<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n",
-            system_message, user_message
-        );
+        // Добавляем шаблон в окружение
+        env.add_template("chat", chat_template)
+            .map_err(|e| InferenceError::Backend(format!("Failed to add chat template: {}", e)))?;
+
+        // Получаем шаблон
+        let tmpl = env.get_template("chat")
+            .map_err(|e| InferenceError::Backend(format!("Failed to get chat template: {}", e)))?;
+
+        // Создаем контекст
+        let ctx = context! {
+            messages => messages,
+            add_generation_prompt => true,
+        };
+
+        // Рендерим шаблон
+        let formatted = tmpl.render(ctx)
+            .map_err(|e| InferenceError::Backend(format!("Failed to render chat template: {}", e)))?;
+
+        log::info!("Rendered chat template successfully");
         Ok(formatted)
     } else if chat_template.contains("<|user|>") && chat_template.contains("<|assistant|>") {
-        // Формат с специальными токенами
+        // Простая замена плейсхолдеров для специальных токенов
         let formatted = chat_template
             .replace("{{user_message}}", user_message)
             .replace("{{query}}", user_message)
             .replace("{{question}}", user_message);
         Ok(formatted)
     } else {
-        // Простое форматирование для Qwen/HF моделей
+        // Fallback на простое форматирование для Qwen/HF моделей
+        log::warn!("Unknown chat template format, using fallback formatting");
         let system_message = "You are a helpful assistant.";
         let formatted = format!(
             "<|im_start|>system\n{}\n<|im_end|>\n<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n",
