@@ -134,7 +134,15 @@ impl InferenceEngine {
             generated_text = decoded;
         }
 
+        // Start generation from the current position
+        let mut current_pos = tokens.len();
+        let max_context_length = 2048; // Limit context to avoid memory issues
+
         for _ in 0..self.config.max_tokens {
+            if all_tokens.is_empty() || all_tokens.len() >= max_context_length {
+                break;
+            }
+
             let input = candle_core::Tensor::new(
                 &[all_tokens[all_tokens.len() - 1]],
                 self.model_snapshot.device(),
@@ -146,7 +154,7 @@ impl InferenceEngine {
             let logits = model
                 .lock()
                 .unwrap()
-                .forward(&input, all_tokens.len())
+                .forward(&input, current_pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
             let logits = logits
                 .squeeze(0)
@@ -167,6 +175,7 @@ impl InferenceEngine {
                 .sample(&logits)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
             all_tokens.push(next_token);
+            current_pos += 1;
 
             if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
                 if let Some(text) = decoded.strip_prefix(&generated_text) {
@@ -235,7 +244,15 @@ impl InferenceEngine {
             generated_text = decoded;
         }
 
+        // Start generation from the current position
+        let mut current_pos = tokens.len();
+        let max_context_length = 2048; // Limit context to avoid memory issues
+
         for _ in 0..self.config.max_tokens {
+            if all_tokens.is_empty() || all_tokens.len() >= max_context_length {
+                break;
+            }
+
             let input = candle_core::Tensor::new(
                 &[all_tokens[all_tokens.len() - 1]],
                 self.model_snapshot.device(),
@@ -247,7 +264,7 @@ impl InferenceEngine {
             let logits = model
                 .lock()
                 .unwrap()
-                .forward(&input, all_tokens.len())
+                .forward(&input, current_pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
             let logits = logits
                 .squeeze(0)
@@ -268,6 +285,7 @@ impl InferenceEngine {
                 .sample(&logits)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
             all_tokens.push(next_token);
+            current_pos += 1;
 
             if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
                 if let Some(text) = decoded.strip_prefix(&generated_text) {
