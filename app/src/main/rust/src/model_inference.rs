@@ -112,31 +112,37 @@ impl InferenceEngine {
             Some(self.config.top_p as f64),
         );
 
-        let mut all_tokens = tokens.clone();
+        let mut all_tokens = Vec::new();
         let mut generated_text = String::new();
 
-        // First, process the prompt tokens without sampling
-        for (pos, token) in tokens.iter().enumerate() {
-            let input = candle_core::Tensor::new(&[*token], self.model_snapshot.device())
+        // Process the prompt tokens with proper sampling to build context
+        for (pos, &token) in tokens.iter().enumerate() {
+            let input = candle_core::Tensor::new(&[token], self.model_snapshot.device())
                 .map_err(|e| InferenceError::Backend(e.to_string()))?
                 .unsqueeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let _logits = model
+            let logits = model
                 .lock()
                 .unwrap()
                 .forward(&input, pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-        }
+            let logits = logits
+                .squeeze(0)
+                .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-        // Get the initial decoded text from the prompt
-        if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
-            generated_text = decoded;
+            all_tokens.push(token);
+
+            // Decode incrementally to build the generated text
+            if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
+                generated_text = decoded.clone();
+            }
         }
 
         // Start generation from the current position
         let mut current_pos = tokens.len();
         let max_context_length = 2048; // Limit context to avoid memory issues
+        let eos_token = 151645u32; // Qwen3 EOS token
 
         for _ in 0..self.config.max_tokens {
             if all_tokens.is_empty() || all_tokens.len() >= max_context_length {
@@ -174,6 +180,12 @@ impl InferenceEngine {
             let next_token = logits_processor
                 .sample(&logits)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
+
+            // Stop if we generated EOS token
+            if next_token == eos_token {
+                break;
+            }
+
             all_tokens.push(next_token);
             current_pos += 1;
 
@@ -222,31 +234,37 @@ impl InferenceEngine {
             Some(self.config.top_p as f64),
         );
 
-        let mut all_tokens = tokens.clone();
+        let mut all_tokens = Vec::new();
         let mut generated_text = String::new();
 
-        // First, process the prompt tokens without sampling
-        for (pos, token) in tokens.iter().enumerate() {
-            let input = candle_core::Tensor::new(&[*token], self.model_snapshot.device())
+        // Process the prompt tokens with proper sampling to build context
+        for (pos, &token) in tokens.iter().enumerate() {
+            let input = candle_core::Tensor::new(&[token], self.model_snapshot.device())
                 .map_err(|e| InferenceError::Backend(e.to_string()))?
                 .unsqueeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let _logits = model
+            let logits = model
                 .lock()
                 .unwrap()
                 .forward(&input, pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-        }
+            let logits = logits
+                .squeeze(0)
+                .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-        // Get the initial decoded text from the prompt
-        if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
-            generated_text = decoded;
+            all_tokens.push(token);
+
+            // Decode incrementally to build the generated text
+            if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
+                generated_text = decoded.clone();
+            }
         }
 
         // Start generation from the current position
         let mut current_pos = tokens.len();
         let max_context_length = 2048; // Limit context to avoid memory issues
+        let eos_token = 151645u32; // Qwen3 EOS token
 
         for _ in 0..self.config.max_tokens {
             if all_tokens.is_empty() || all_tokens.len() >= max_context_length {
@@ -284,6 +302,12 @@ impl InferenceEngine {
             let next_token = logits_processor
                 .sample(&logits)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
+
+            // Stop if we generated EOS token
+            if next_token == eos_token {
+                break;
+            }
+
             all_tokens.push(next_token);
             current_pos += 1;
 
