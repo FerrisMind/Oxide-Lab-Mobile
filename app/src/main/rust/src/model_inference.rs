@@ -191,8 +191,11 @@ impl InferenceEngine {
                 .sample(&logits)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
+            log::info!("Generated token: {}, EOS token: {}", next_token, eos_token);
+
             // Stop if we generated EOS token
             if next_token == eos_token {
+                log::info!("EOS token generated, stopping generation");
                 break;
             }
 
@@ -323,8 +326,11 @@ impl InferenceEngine {
                 .sample(&logits)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
+            log::info!("Generated token: {}, EOS token: {}", next_token, eos_token);
+
             // Stop if we generated EOS token
             if next_token == eos_token {
+                log::info!("EOS token generated, stopping generation");
                 break;
             }
 
