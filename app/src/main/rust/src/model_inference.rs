@@ -122,12 +122,12 @@ impl InferenceEngine {
                 .unsqueeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let logits = model
+            let _logits = model
                 .lock()
                 .unwrap()
                 .forward(&input, pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            let logits = logits
+            let _logits = _logits
                 .squeeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
@@ -157,24 +157,24 @@ impl InferenceEngine {
             .unsqueeze(0)
             .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let logits = model
+            let logits_raw = model
                 .lock()
                 .unwrap()
                 .forward(&input, current_pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            let logits = logits
+            let logits_raw = logits_raw
                 .squeeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
             let logits = if self.config.repeat_penalty != 1.0 {
                 candle_transformers::utils::apply_repeat_penalty(
-                    &logits,
+                    &logits_raw,
                     self.config.repeat_penalty,
                     &all_tokens,
                 )
                 .map_err(|e| InferenceError::Backend(e.to_string()))?
             } else {
-                logits
+                logits_raw
             };
 
             let next_token = logits_processor
@@ -244,12 +244,12 @@ impl InferenceEngine {
                 .unsqueeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let logits = model
+            let _logits = model
                 .lock()
                 .unwrap()
                 .forward(&input, pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            let logits = logits
+            let _logits = _logits
                 .squeeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
@@ -279,24 +279,24 @@ impl InferenceEngine {
             .unsqueeze(0)
             .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let logits = model
+            let logits_raw = model
                 .lock()
                 .unwrap()
                 .forward(&input, current_pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            let logits = logits
+            let logits_raw = logits_raw
                 .squeeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
             let logits = if self.config.repeat_penalty != 1.0 {
                 candle_transformers::utils::apply_repeat_penalty(
-                    &logits,
+                    &logits_raw,
                     self.config.repeat_penalty,
                     &all_tokens,
                 )
                 .map_err(|e| InferenceError::Backend(e.to_string()))?
             } else {
-                logits
+                logits_raw
             };
 
             let next_token = logits_processor
