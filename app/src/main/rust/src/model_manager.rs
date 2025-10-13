@@ -65,6 +65,7 @@ pub struct LoadedModel {
     model: ActiveModel,
     tokenizer: tokenizers::Tokenizer,
     device: Device,
+    chat_template: Option<String>,
 }
 
 impl LoadedModel {
@@ -81,6 +82,11 @@ impl LoadedModel {
     /// Возвращает ссылку на активную модель.
     pub fn model(&self) -> &ActiveModel {
         &self.model
+    }
+
+    /// Возвращает chat template, если он доступен.
+    pub fn chat_template(&self) -> Option<&str> {
+        self.chat_template.as_deref()
     }
 
     /// Возвращает тип загруженной модели.
@@ -119,6 +125,27 @@ impl ModelManager {
         let tokenizer = tokenizers::Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| ModelManagerError::Initialization(e.to_string()))?;
 
+        // Извлекаем chat template из метаданных GGUF файла
+        let chat_template = {
+            let mut reader = std::fs::File::open(&model_path)
+                .map_err(|e| ModelManagerError::Initialization(e.to_string()))?;
+            let content = gguf_file::Content::read(&mut reader)
+                .map_err(|e| ModelManagerError::Initialization(e.to_string()))?;
+            let metadata = &content.metadata;
+
+            // Ищем chat template в различных возможных ключах
+            metadata.get("tokenizer.chat_template")
+                .or_else(|| metadata.get("chat_template"))
+                .or_else(|| metadata.get("tokenizer.ggml.chat_template"))
+                .and_then(|value| {
+                    if let gguf_file::Value::String(template) = value {
+                        Some(template.clone())
+                    } else {
+                        None
+                    }
+                })
+        };
+
         let loaded_model = match model_type {
             ModelType::Qwen3 => {
                 // Прочитаем файл заново для модели
@@ -147,6 +174,7 @@ impl ModelManager {
             model: loaded_model,
             tokenizer,
             device: self.device.clone(),
+            chat_template,
         };
 
         *self.inner.write() = Some(loaded);
@@ -193,6 +221,19 @@ impl ModelManager {
                 )
             })?;
 
+        // Извлекаем chat template из метаданных
+        let chat_template = content.metadata
+            .get("tokenizer.chat_template")
+            .or_else(|| content.metadata.get("chat_template"))
+            .or_else(|| content.metadata.get("tokenizer.ggml.chat_template"))
+            .and_then(|value| {
+                if let gguf_file::Value::String(template) = value {
+                    Some(template.clone())
+                } else {
+                    None
+                }
+            });
+
         // Теперь читаем файл заново для загрузки модели
         let mut reader = std::fs::File::open(model_path)
             .map_err(|e| ModelManagerError::Initialization(e.to_string()))?;
@@ -220,6 +261,7 @@ impl ModelManager {
             model: loaded_model,
             tokenizer,
             device: self.device.clone(),
+            chat_template,
         };
 
         *self.inner.write() = Some(loaded);
@@ -498,6 +540,7 @@ pub struct LoadedModelSnapshot {
     tokenizer: tokenizers::Tokenizer,
     device: Device,
     model: Arc<ActiveModel>,
+    chat_template: Option<String>,
 }
 
 impl LoadedModelSnapshot {
@@ -507,6 +550,7 @@ impl LoadedModelSnapshot {
             tokenizer: loaded.tokenizer.clone(),
             device: loaded.device().clone(),
             model: Arc::new(loaded.model.clone()),
+            chat_template: loaded.chat_template.clone(),
         }
     }
 
@@ -528,6 +572,11 @@ impl LoadedModelSnapshot {
     /// Возвращает ссылку на модель.
     pub fn model(&self) -> &ActiveModel {
         &self.model
+    }
+
+    /// Возвращает chat template, если он доступен.
+    pub fn chat_template(&self) -> Option<&str> {
+        self.chat_template.as_deref()
     }
 }
 

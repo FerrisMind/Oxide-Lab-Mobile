@@ -100,8 +100,15 @@ impl InferenceEngine {
     ) -> Result<String, InferenceError> {
         use candle_transformers::generation::LogitsProcessor;
 
+        // Применяем chat template если он доступен
+        let formatted_prompt = if let Some(chat_template) = self.model_snapshot.chat_template() {
+            apply_chat_template(chat_template, prompt)?
+        } else {
+            prompt.to_string()
+        };
+
         let tokens = tokenizer
-            .encode(prompt, true)
+            .encode(formatted_prompt.as_str(), true)
             .map_err(|e| InferenceError::Backend(e.to_string()))?
             .get_ids()
             .to_vec();
@@ -222,8 +229,15 @@ impl InferenceEngine {
         // Аналогичная логика для Gemma3, адаптированная под её API
         use candle_transformers::generation::LogitsProcessor;
 
+        // Применяем chat template если он доступен
+        let formatted_prompt = if let Some(chat_template) = self.model_snapshot.chat_template() {
+            apply_chat_template(chat_template, prompt)?
+        } else {
+            prompt.to_string()
+        };
+
         let tokens = tokenizer
-            .encode(prompt, true)
+            .encode(formatted_prompt.as_str(), true)
             .map_err(|e| InferenceError::Backend(e.to_string()))?
             .get_ids()
             .to_vec();
@@ -337,6 +351,35 @@ impl InferenceEngine {
     /// Возвращает устройство вычислений.
     pub fn device(&self) -> &Device {
         self.model_snapshot.device()
+    }
+}
+
+/// Применяет chat template для форматирования сообщения пользователя.
+/// Пока реализуем простую версию, в будущем можно добавить поддержку Jinja2.
+fn apply_chat_template(chat_template: &str, user_message: &str) -> Result<String, InferenceError> {
+    // Для простоты используем базовое форматирование
+    // В будущем можно добавить полноценный парсер Jinja2 шаблонов
+
+    if chat_template.contains("{{messages}}") || chat_template.contains("{%") {
+        // Это Jinja2 шаблон - пока возвращаем сообщение без изменений
+        // TODO: реализовать полноценный парсер Jinja2
+        log::warn!("Jinja2 chat template detected but not fully supported yet");
+        Ok(user_message.to_string())
+    } else if chat_template.contains("<|user|>") && chat_template.contains("<|assistant|>") {
+        // Формат с специальными токенами
+        let formatted = chat_template
+            .replace("{{user_message}}", user_message)
+            .replace("{{query}}", user_message)
+            .replace("{{question}}", user_message);
+        Ok(formatted)
+    } else {
+        // Простое форматирование для Qwen/HF моделей
+        let system_message = "You are a helpful assistant.";
+        let formatted = format!(
+            "<|im_start|>system\n{}\n<|im_end|>\n<|im_start|>user\n{}\n<|im_end|>\n<|im_start|>assistant\n",
+            system_message, user_message
+        );
+        Ok(formatted)
     }
 }
 
