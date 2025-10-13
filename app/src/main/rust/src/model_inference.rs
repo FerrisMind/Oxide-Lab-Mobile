@@ -112,39 +112,26 @@ impl InferenceEngine {
             Some(self.config.top_p as f64),
         );
 
-        let mut all_tokens = vec![];
+        let mut all_tokens = tokens.clone();
         let mut generated_text = String::new();
 
+        // First, process the prompt tokens without sampling
         for (pos, token) in tokens.iter().enumerate() {
             let input = candle_core::Tensor::new(&[*token], self.model_snapshot.device())
                 .map_err(|e| InferenceError::Backend(e.to_string()))?
                 .unsqueeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let logits = model
+            let _logits = model
                 .lock()
                 .unwrap()
                 .forward(&input, pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            let logits = logits
-                .squeeze(0)
-                .map_err(|e| InferenceError::Backend(e.to_string()))?;
+        }
 
-            let next_token = logits_processor
-                .sample(&logits)
-                .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            all_tokens.push(next_token);
-
-            if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
-                if let Some(text) = decoded.strip_prefix(&generated_text) {
-                    if !text.is_empty() {
-                        if let Some(cb) = &callback {
-                            cb.on_token(text);
-                        }
-                        generated_text.push_str(text);
-                    }
-                }
-            }
+        // Get the initial decoded text from the prompt
+        if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
+            generated_text = decoded;
         }
 
         for _ in 0..self.config.max_tokens {
@@ -226,39 +213,26 @@ impl InferenceEngine {
             Some(self.config.top_p as f64),
         );
 
-        let mut all_tokens = vec![];
+        let mut all_tokens = tokens.clone();
         let mut generated_text = String::new();
 
+        // First, process the prompt tokens without sampling
         for (pos, token) in tokens.iter().enumerate() {
             let input = candle_core::Tensor::new(&[*token], self.model_snapshot.device())
                 .map_err(|e| InferenceError::Backend(e.to_string()))?
                 .unsqueeze(0)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
-            let logits = model
+            let _logits = model
                 .lock()
                 .unwrap()
                 .forward(&input, pos)
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            let logits = logits
-                .squeeze(0)
-                .map_err(|e| InferenceError::Backend(e.to_string()))?;
+        }
 
-            let next_token = logits_processor
-                .sample(&logits)
-                .map_err(|e| InferenceError::Backend(e.to_string()))?;
-            all_tokens.push(next_token);
-
-            if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
-                if let Some(text) = decoded.strip_prefix(&generated_text) {
-                    if !text.is_empty() {
-                        if let Some(cb) = &callback {
-                            cb.on_token(text);
-                        }
-                        generated_text.push_str(text);
-                    }
-                }
-            }
+        // Get the initial decoded text from the prompt
+        if let Ok(decoded) = tokenizer.decode(&all_tokens, true) {
+            generated_text = decoded;
         }
 
         for _ in 0..self.config.max_tokens {
