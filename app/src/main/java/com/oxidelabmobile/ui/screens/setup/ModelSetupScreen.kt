@@ -49,6 +49,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import android.content.pm.PackageManager
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 
 // removed initialization progress and related coroutines
 
@@ -82,6 +84,7 @@ fun ModelSetupScreen(
                 // Opened from menu: always show Back
                 TextButton(
                     onClick = onCancel,
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color(0xFF1B1C3A)
@@ -100,6 +103,7 @@ fun ModelSetupScreen(
                         // Skip setup and go directly to chat
                         onModelLoaded()
                     },
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color(0xFF1B1C3A)

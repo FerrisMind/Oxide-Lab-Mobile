@@ -1,0 +1,174 @@
+---
+description: Candle integration with Hugging Face ecosystem and model management
+alwaysApply: false
+---
+# Candle + Hugging Face Integration
+
+## Настройка зависимостей
+
+### Базовые зависимости для HF интеграции
+
+```toml
+[dependencies]
+candle-core = "0.9"
+candle-nn = "0.9"
+candle-transformers = "0.9"
+hf-hub = "0.4"
+candle-datasets = "0.9"
+tokenizers = "0.22"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+```
+
+## Загрузка моделей из Hugging Face Hub
+
+### Базовая загрузка моделей
+
+```rust
+use candle_core::{Device, Result};
+use hf_hub::{api, api::Repo};
+use candle_transformers::models::llama::{Llama, LlamaConfig};
+
+/// Загрузка модели LLaMA из HF Hub
+pub async fn load_llama_model(
+    model_id: &str,
+    device: &Device,
+) -> Result<Llama> {
+    let api = api::HfApi::new()?;
+    let repo = Repo::with_revision(model_id.to_string(), "main".to_string());
+    let config_filename = api.get(&repo, "config.json").await?;
+    let config: LlamaConfig = serde_json::from_slice(&config_filename)?;
+    let weights_filename = api.get(&repo, "model.safetensors").await?;
+    let weights = candle_core::safetensors::load_buffer(&weights_filename, device)?;
+    Llama::load(&weights, &config, device)
+}
+
+/// Загрузка с кэшированием (детали опущены для краткости)
+pub async fn load_model_with_cache(
+    model_id: &str,
+    device: &Device,
+) -> Result<Llama> {
+    // Логика загрузки из кэша или из Hub
+    load_llama_model(model_id, device).await
+}
+```
+
+## Лучшие практики интеграции
+
+### 1. Кэширование моделей
+
+```rust
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::RwLock;
+use candle_core::Result; // Добавлено use для Result
+
+/// Кэш для моделей (упрощено)
+pub struct ModelCache {
+    cache: Arc<RwLock<HashMap<String, Box<dyn Model>>>>,
+    max_size: usize,
+}
+
+impl ModelCache {
+    pub fn new(max_size: usize) -> Self {
+        Self {
+            cache: Arc::new(RwLock::new(HashMap::new())),
+            max_size,
+        }
+    }
+
+    pub async fn get_or_load<F, Fut>(
+        &self,
+        model_id: String,
+        loader: F,
+    ) -> Result<Box<dyn Model>>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = Result<Box<dyn Model>>>,
+    {
+        // Проверяем кэш
+        {
+            let cache = self.cache.read().await;
+            if let Some(model) = cache.get(&model_id) {
+                return Ok(model.clone());
+            }
+        }
+
+        // Загружаем модель
+        let model = loader().await?;
+
+        // Сохраняем в кэш
+        {
+            let mut cache = self.cache.write().await;
+            if cache.len() >= self.max_size {
+                // Удаляем самую старую модель (простая реализация)
+                if let Some(key) = cache.keys().next().cloned() {
+                    cache.remove(&key);
+                }
+            }
+            cache.insert(model_id, model.clone());
+        }
+
+        Ok(model)
+    }
+}
+```
+
+### 2. Обработка ошибок сети
+
+```rust
+use std::time::Duration;
+use tokio::time::sleep;
+use candle_core::Result; // Добавлено use для Result
+
+/// Retry механизм для загрузки (упрощено)
+pub async fn load_with_retry<F, Fut, T>(
+    operation: F,
+    max_retries: usize,
+    delay: Duration,
+) -> Result<T>
+where
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T>>,
+{
+    let mut last_error = None;
+
+    for attempt in 0..max_retries {
+        match operation().await {
+            Ok(result) => return Ok(result),
+            Err(e) => {
+                last_error = Some(e);
+                if attempt < max_retries - 1 {
+                    sleep(delay).await;
+                }
+            }
+        }
+    }
+
+    Err(last_error.unwrap())
+}
+```
+
+### 3. Валидация моделей
+
+```rust
+use candle_core::{Tensor, Device, Result}; // Добавлено use для Tensor, Device, Result
+use super::Model; // Добавлено use для Model
+
+/// Валидация загруженной модели
+pub fn validate_model(model: &dyn Model) -> Result<()> {
+    if model.num_parameters() == 0 {
+        return Err(candle_core::Error::Msg("Модель не имеет параметров".to_string()));
+    }
+    let device = model.device();
+    if matches!(device, Device::Cuda(_)) {
+        device.synchronize()?;
+    }
+    let dummy_input = Tensor::randn(0f32, 1f32, (1, 10), device)?;
+    let _output = model.forward(&dummy_input)?;
+    Ok(())
+}
+```
+
+Следуйте этим практикам для эффективной интеграции Candle с экосистемой Hugging Face.

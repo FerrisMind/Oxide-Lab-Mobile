@@ -23,6 +23,7 @@ import com.oxidelabmobile.RustInterface
 import kotlinx.coroutines.launch
 import java.io.File
 import android.os.Environment
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /**
  * Новый экран настройки модели с использованием Kotlin HTTP клиента
@@ -47,7 +48,7 @@ fun ModelSetupScreenNew(
         var downloadedModelPath by remember { mutableStateOf<String?>(null) }
         var isModelDownloaded by remember { mutableStateOf(false) }
         var modelFileSize by remember { mutableStateOf<Long>(-1) }
-        
+
         // Состояние для второй модели (Gemma)
         var isGemmaDownloaded by remember { mutableStateOf(false) }
         var isGemmaDownloading by remember { mutableStateOf(false) }
@@ -55,42 +56,42 @@ fun ModelSetupScreenNew(
         var gemmaDownloadStatus by remember { mutableStateOf("") }
         var gemmaFileSize by remember { mutableStateOf<Long>(-1) }
         var gemmaDownloadedPath by remember { mutableStateOf<String?>(null) }
-    
+
     // Модели будут сохраняться в папку models в корне устройства
     val modelsDir = File(Environment.getExternalStorageDirectory(), "models").absolutePath
-    
+
     // Константы для модели
     val modelName = "unsloth/Qwen3-0.6B-GGUF"
     val fileName = "Qwen3-0.6B-Q5_K_M.gguf"
-    
+
     // Константы для второй модели (Gemma)
     val gemmaModelName = "unsloth/gemma-3-270m-it-qat-GGUF"
     val gemmaFileName = "gemma-3-270m-it-qat-Q5_K_M.gguf"
     val cardListState = rememberLazyListState()
-    
+
     // Проверяем состояние моделей при запуске
     LaunchedEffect(Unit) {
         modelDownloader.syncCacheWithFiles()
-        
+
         // Проверяем первую модель (Qwen)
         isModelDownloaded = modelDownloader.isModelDownloaded(modelName, fileName)
         modelFileSize = modelDownloader.getModelFileSize(fileName)
-        
+
         if (isModelDownloaded) {
             downloadedModelPath = File(Environment.getExternalStorageDirectory(), "models/$fileName").absolutePath
             downloadStatus = "Модель уже загружена"
         }
-        
+
         // Проверяем вторую модель (Gemma)
         isGemmaDownloaded = modelDownloader.isModelDownloaded(gemmaModelName, gemmaFileName)
         gemmaFileSize = modelDownloader.getModelFileSize(gemmaFileName)
-        
+
         if (isGemmaDownloaded) {
             gemmaDownloadedPath = File(Environment.getExternalStorageDirectory(), "models/$gemmaFileName").absolutePath
             gemmaDownloadStatus = "Модель уже загружена"
         }
     }
-    
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -99,6 +100,7 @@ fun ModelSetupScreenNew(
                 // Opened from menu: always show Back
                 TextButton(
                     onClick = onCancel,
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color(0xFF1B1C3A)
@@ -118,6 +120,7 @@ fun ModelSetupScreenNew(
                         // Skip setup and go directly to chat
                         onModelLoaded()
                     },
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = Color(0xFF1B1C3A)
@@ -261,6 +264,7 @@ fun ModelSetupScreenNew(
                                                     }
                                                 }
                                             },
+                                            shape = RoundedCornerShape(12.dp),
                                             enabled = !isDownloading
                                         ) {
                                             Text(if (isDownloading) "Загрузка..." else "Загрузить модель")
@@ -284,6 +288,7 @@ fun ModelSetupScreenNew(
                                                     }
                                                 }
                                             },
+                                            shape = RoundedCornerShape(12.dp),
                                             enabled = !isDownloading,
                                             colors = ButtonDefaults.buttonColors(
                                                 containerColor = MaterialTheme.colorScheme.error
@@ -305,6 +310,7 @@ fun ModelSetupScreenNew(
                                                     }
                                                 }
                                             },
+                                            shape = RoundedCornerShape(12.dp),
                                             enabled = !isDownloading
                                         ) {
                                             Text("Тест модели")
@@ -435,6 +441,7 @@ fun ModelSetupScreenNew(
                                                 }
                                             }
                                         },
+                                        shape = RoundedCornerShape(12.dp),
                                         enabled = !isGemmaDownloading
                                     ) {
                                         Text("Загрузить Gemma")
@@ -454,6 +461,7 @@ fun ModelSetupScreenNew(
                                                 }
                                             }
                                         },
+                                        shape = RoundedCornerShape(12.dp),
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = MaterialTheme.colorScheme.errorContainer,
                                             contentColor = MaterialTheme.colorScheme.onErrorContainer
@@ -475,6 +483,7 @@ fun ModelSetupScreenNew(
                                                 }
                                             }
                                         },
+                                        shape = RoundedCornerShape(12.dp),
                                         enabled = !isGemmaDownloading
                                     ) {
                                         Text("Тест модели")

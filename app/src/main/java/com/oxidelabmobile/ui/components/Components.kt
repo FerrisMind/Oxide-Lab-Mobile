@@ -39,8 +39,11 @@ import com.oxidelabmobile.ui.theme.Dimensions
 import com.oxidelabmobile.ui.theme.OxideLabMobileTheme
 import com.oxidelabmobile.ui.theme.Spacing
 import com.oxidelabmobile.ui.theme.Status
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun OxideExtendedFAB(
     text: String,
@@ -50,6 +53,7 @@ fun OxideExtendedFAB(
 ) {
     ExtendedFloatingActionButton(
         onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
         modifier = modifier
             .height(Dimensions.ExtendedFABHeight)
             .semantics {
@@ -76,6 +80,7 @@ fun OxideFAB(
 ) {
     FloatingActionButton(
         onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
         modifier = modifier
             .size(Dimensions.FABSize)
             .semantics {
@@ -88,6 +93,7 @@ fun OxideFAB(
     }
 }
 
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun LabHeader(
     title: String,
@@ -117,7 +123,7 @@ fun LabHeader(
                 }
         ) {
             Icon(
-                painter = painterResource(id = R.drawable.list__1_),
+                painter = painterResource(id = R.drawable.sidebar_simple),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurface
             )
@@ -150,7 +156,7 @@ fun StatusDot(
     } else {
         MaterialTheme.colorScheme.outline
     }
-    
+
     Box(
         modifier = modifier
             .size(Status.DotSize)
@@ -190,7 +196,7 @@ fun MessageBubble(
             },
             modifier = Modifier.padding(Spacing.Medium)
         )
-        
+
         timestamp?.let {
             Text(
                 text = it,
@@ -218,20 +224,20 @@ fun ComponentsPreview() {
                 text = "Выбрать модель",
                 onClick = {}
             )
-            
+
             LabHeader(
                 title = "Qwen 3",
                 statusText = "Готов",
                 isOnline = true
             )
-            
+
             StatusDot(isOnline = true)
-            
+
             MessageBubble(
                 text = "Привет! Как дела?",
                 isUser = true
             )
-            
+
             MessageBubble(
                 text = "Привет! Всё отлично, спасибо за вопрос!",
                 isUser = false

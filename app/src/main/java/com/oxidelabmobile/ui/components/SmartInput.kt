@@ -30,6 +30,8 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.tooling.preview.Preview
 import com.oxidelabmobile.ui.theme.OxideLabMobileTheme
 import com.oxidelabmobile.ui.theme.Spacing
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 
 @Composable
 fun SmartInputField(
@@ -41,7 +43,7 @@ fun SmartInputField(
 ) {
     val keyboardController = LocalSoftwareKeyboardController.current
     var isCodeMode by remember { mutableStateOf(false) }
-    
+
     // Detect code patterns
     LaunchedEffect(inputText.text) {
         val text = inputText.text
@@ -51,12 +53,12 @@ fun SmartInputField(
             "public ", "private ", "protected ", "static ",
             "int ", "string ", "bool ", "void ", "return "
         )
-        
+
         isCodeMode = codePatterns.any { pattern ->
             text.contains(pattern, ignoreCase = true)
         }
     }
-    
+
     Column(
         modifier = modifier.fillMaxWidth(),
         verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.Small)
@@ -72,7 +74,7 @@ fun SmartInputField(
                 }
             )
         }
-        
+
         // Input field and send button
         Row(
             verticalAlignment = Alignment.Bottom,
@@ -109,12 +111,13 @@ fun SmartInputField(
                     fontFamily = if (isCodeMode) FontFamily.Monospace else FontFamily.Default
                 )
             )
-            
+
             FloatingActionButton(
                 onClick = {
                     keyboardController?.hide()
                     onSendMessage()
                 },
+                shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.semantics {
                     contentDescription = "Send message"
                 },
@@ -127,7 +130,7 @@ fun SmartInputField(
                 )
             }
         }
-        
+
         // Smart suggestions
         if (isCodeMode) {
             Text(
@@ -154,7 +157,7 @@ fun SmartInputFieldPreview() {
                 isThinkingEnabled = false,
                 onSendMessage = {}
             )
-            
+
             SmartInputField(
                 inputText = TextFieldValue("Привет! Как дела?"),
                 onInputTextChange = {},

@@ -1,0 +1,216 @@
+---
+description: Candle testing, validation and quality assurance best practices
+alwaysApply: false
+---
+# Candle Testing & Validation
+
+## Настройка тестового окружения
+
+### Базовые зависимости для тестирования
+
+```toml
+[dev-dependencies]
+criterion = { version = "0.7", features = ["html_reports"] }
+proptest = "1"
+approx = "0.5"
+tempfile = "3"
+mockall = "0.13"
+tokio-test = "0.4"
+```
+
+### Структура тестов
+
+```
+tests/
+├── integration/           # Интеграционные тесты
+├── unit/                  # Unit тесты
+├── property/              # Property-based тесты
+└── benchmarks/            # Бенчмарки
+```
+
+## Unit тестирование
+
+### Тестирование операций с тензорами
+
+```rust
+#[cfg(test)]
+mod tensor_tests {
+    use super::*;
+    use candle_core::{Tensor, Device, DType};
+    use approx::assert_abs_diff_eq;
+
+    #[test]
+    fn test_tensor_creation() {
+        let device = Device::Cpu;
+        let tensor = Tensor::zeros((2, 3), DType::F32, &device).unwrap();
+        assert_eq!(tensor.shape(), &[2, 3]);
+    }
+
+    #[test]
+    fn test_tensor_operations() {
+        let device = Device::Cpu;
+        let a = Tensor::ones((2, 2), DType::F32, &device).unwrap();
+        let b = Tensor::ones((2, 2), DType::F32, &device).unwrap();
+        let sum = (&a + &b).unwrap();
+        let expected = Tensor::from_slice(&[2.0, 2.0, 2.0, 2.0], (2, 2), &device).unwrap();
+        assert_tensor_eq(&sum, &expected, 1e-6);
+    }
+
+    /// Вспомогательная функция для сравнения тензоров (детали опущены)
+    fn assert_tensor_eq(a: &Tensor, b: &Tensor, tolerance: f32) {
+        // ... existing code ...
+        // Логика сравнения тензоров
+        // ... existing code ...
+    }
+}
+```
+
+## Property-based тестирование
+
+### Тестирование свойств тензоров
+
+```rust
+use proptest::prelude::*;
+
+proptest! {
+    #[test]
+    fn test_tensor_addition_commutativity(
+        shape in (1..5usize).prop_flat_map(|s| (s, s)),
+        values1 in prop::collection::vec(-10.0f32..10.0, 1..20),
+        values2 in prop::collection::vec(-10.0f32..10.0, 1..20)
+    ) {
+        let device = Device::Cpu;
+        let size = shape.0 * shape.1;
+        if values1.len() >= size && values2.len() >= size {
+            let tensor1 = Tensor::from_slice(&values1[..size], shape, &device).unwrap();
+            let tensor2 = Tensor::from_slice(&values2[..size], shape, &device).unwrap();
+            let result1 = (&tensor1 + &tensor2).unwrap();
+            let result2 = (&tensor2 + &tensor1).unwrap();
+            // assert_tensor_eq должна быть доступна из tensor_tests
+            // assert_tensor_eq(&result1, &result2, 1e-6);
+        }
+    }
+}
+```
+
+## Интеграционные тесты
+
+### Тестирование сохранения и загрузки моделей
+
+```rust
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    #[test]
+    fn test_model_save_and_load() {
+        let device = Device::Cpu;
+        let temp_dir = TempDir::new().unwrap();
+        let model_path = temp_dir.path().join("test_model.safetensors");
+
+        // Предполагаем наличие Model и save/load функций
+        // let config = TransformerConfig::default();
+        // let original_model = Transformer::new(config.clone(), &device).unwrap();
+        // save_model_safetensors(&original_model, model_path.to_str().unwrap()).unwrap();
+        // let loaded_model = load_model_safetensors::<Transformer>(model_path.to_str().unwrap(), &device).unwrap();
+
+        // assert_eq!(original_model.num_parameters(), loaded_model.num_parameters());
+    }
+}
+```
+
+## Бенчмарки производительности
+
+Оценивайте производительность ключевых операций и моделей с помощью `criterion`.
+
+```rust
+use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId};
+use candle_core::{Tensor, Device};
+
+fn benchmark_tensor_operations(c: &mut Criterion) {
+    let device = Device::Cpu;
+    let mut group = c.benchmark_group("tensor_operations");
+    let size = 1000;
+    let tensor_a = Tensor::randn(0f32, 1f32, (size, size), &device).unwrap();
+    let tensor_b = Tensor::randn(0f32, 1f32, (size, size), &device).unwrap();
+
+    group.bench_with_input(BenchmarkId::new("matmul", size), size, |b, _| {
+        b.iter(|| {
+            tensor_a.matmul(&tensor_b).unwrap()
+        });
+    });
+    group.finish();
+}
+
+criterion_group!(benches, benchmark_tensor_operations);
+criterion_main!(benches);
+```
+
+## Тестирование на GPU
+
+### Условное тестирование GPU
+
+```rust
+#[cfg(test)]
+mod gpu_tests {
+    use super::*;
+    use candle_core::{Tensor, Device};
+
+    #[test]
+    #[cfg(feature = "cuda")]
+    fn test_cuda_operations() {
+        let device = Device::new_cuda(0).unwrap_or_else(|_| {
+            println!("CUDA недоступна, пропускаем тест");
+            Device::Cpu
+        });
+        let tensor = Tensor::randn(0f32, 1f32, (100, 100), &device).unwrap();
+        let result = tensor.matmul(&tensor).unwrap();
+        assert_eq!(result.shape(), &[100, 100]);
+    }
+}
+```
+
+## Моки и тестовые двойники
+
+### Создание моков для тестирования
+
+```rust
+use mockall::*;
+use candle_core::{Tensor, Result, Device};
+
+#[automock]
+pub trait ModelTrait {
+    fn forward(&self, input: &Tensor) -> Result<Tensor>;
+}
+
+#[cfg(test)]
+mod mock_tests {
+    use super::*;
+
+    #[test]
+    fn test_with_mock_model() {
+        let mut mock_model = MockModelTrait::new();
+        mock_model
+            .expect_forward()
+            .times(1)
+            .returning(|_| {
+                let device = Device::Cpu;
+                Tensor::ones((1, 10), DType::F32, &device)
+            });
+
+        let input = Tensor::randn(0f32, 1f32, (1, 5), &Device::Cpu).unwrap();
+        let output = mock_model.forward(&input).unwrap();
+        assert_eq!(output.shape(), &[1, 10]);
+    }
+}
+```
+
+## Лучшие практики тестирования
+
+1.  **Детерминированные тесты**: Используйте фиксированные seed'ы и входные данные.
+2.  **Тестируйте граничные случаи (edge cases)**: Проверяйте нулевые размеры, очень маленькие/большие значения.
+3.  **Группируйте связанные тесты**: Используйте модули для логической организации.
+4.  **Параметризованные тесты**: Запускайте один тест с разными наборами входных данных.
+
+Следуйте этим практикам для создания надежных и comprehensive тестов для ваших Candle приложений.

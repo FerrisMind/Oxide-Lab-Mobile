@@ -55,7 +55,7 @@ fun ThinkingModeScreen(
     modifier: Modifier = Modifier
 ) {
     var isExpanded by remember { mutableStateOf(false) }
-    
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.background,
@@ -95,7 +95,7 @@ fun ThinkingModeScreen(
         ) {
             // Thinking indicator
             ThinkingIndicator()
-            
+
             // Thinking process card
             ThinkingProcessCard(
                 isExpanded = isExpanded,
@@ -113,7 +113,7 @@ private fun ThinkingIndicator() {
     ) {
         // Animated dots
         ThinkingDots()
-        
+
         // Status text
         Text(
             text = "ИИ анализирует запрос...",
@@ -127,7 +127,7 @@ private fun ThinkingIndicator() {
 @Composable
 private fun ThinkingDots() {
     val infiniteTransition = rememberInfiniteTransition(label = "thinking")
-    
+
     val dot1Alpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
@@ -137,7 +137,7 @@ private fun ThinkingDots() {
         ),
         label = "dot1"
     )
-    
+
     val dot2Alpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
@@ -147,7 +147,7 @@ private fun ThinkingDots() {
         ),
         label = "dot2"
     )
-    
+
     val dot3Alpha by infiniteTransition.animateFloat(
         initialValue = 0.3f,
         targetValue = 1f,
@@ -157,7 +157,7 @@ private fun ThinkingDots() {
         ),
         label = "dot3"
     )
-    
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(Spacing.Small),
         verticalAlignment = Alignment.CenterVertically
@@ -207,7 +207,7 @@ private fun ThinkingProcessCard(
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 IconButton(
                     onClick = onToggleExpanded,
                     modifier = Modifier.semantics {
@@ -221,18 +221,18 @@ private fun ThinkingProcessCard(
                     )
                 }
             }
-            
+
             // Content
             if (isExpanded) {
                 Text(
                     text = """
                         Анализирую запрос о машинном обучении...
-                        
+
                         1. Определяю ключевые концепции:
                            - Обучение с учителем
                            - Обучение без учителя
                            - Обучение с подкреплением
-                        
+
                         2. Выбираю подходящий уровень объяснения
                         3. Формирую структурированный ответ
                         4. Проверяю точность информации

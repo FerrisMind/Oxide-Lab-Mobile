@@ -57,6 +57,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collect
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 data class ChatMessage(
     val text: String,
@@ -74,7 +75,7 @@ fun ActiveLabScreen(
 ) {
     val context = LocalContext.current
     val modelDownloader = remember { ModelDownloader(context) }
-    
+
     var messages by remember { mutableStateOf(listOf(
         ChatMessage("Привет! Я готов помочь с анализом данных.", false, "14:30"),
         ChatMessage("Отлично! Можешь объяснить принципы машинного обучения?", true, "14:31")
@@ -127,7 +128,7 @@ fun ActiveLabScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
                     // Drawer header
                     Text(
-                        text = "Меню", 
+                        text = "Меню",
                         modifier = Modifier.padding(Spacing.Medium),
                         style = androidx.compose.material3.MaterialTheme.typography.titleLarge
                     )
@@ -147,6 +148,7 @@ fun ActiveLabScreen(
                                 coroutineScope.launch { drawerState.close() }
                                 onOpenModelManager()
                             },
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = Spacing.Medium)
@@ -173,6 +175,7 @@ fun ActiveLabScreen(
                                 coroutineScope.launch { drawerState.close() }
                                 showSettingsSheet = true
                             },
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = Spacing.Medium)
@@ -199,6 +202,7 @@ fun ActiveLabScreen(
                                 coroutineScope.launch { drawerState.close() }
                                 onSettings()
                             },
+                            shape = RoundedCornerShape(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = Spacing.Medium)

@@ -60,7 +60,7 @@ fun ComposerField(
 ) {
     var text by remember { mutableStateOf(TextFieldValue("")) }
     var expanded by remember { mutableStateOf(false) }
-    
+
     // Interaction source для отслеживания фокуса
     val interactionSource = remember { MutableInteractionSource() }
     val isFocused by interactionSource.collectIsFocusedAsState()
@@ -81,14 +81,14 @@ fun ComposerField(
             value = text,
             onValueChange = { text = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = { 
+            placeholder = {
                 Text(
                     text = "Опишите задачу...",
                     style = TextStyle(
                         color = Color.Gray.copy(alpha = 0.6f), // Тусклый серый цвет
                         fontStyle = FontStyle.Italic // Курсивный стиль
                     )
-                ) 
+                )
             },
             singleLine = false,
             minLines = 1,
@@ -113,9 +113,9 @@ fun ComposerField(
             // Left group: model selector button
             Box(modifier = Modifier.padding(start = 8.dp)) {
                 Button(
-                    onClick = { 
+                    onClick = {
                         if (availableModels.isNotEmpty()) {
-                            expanded = true 
+                            expanded = true
                         }
                     },
                     shape = RoundedCornerShape(8.dp),
@@ -150,7 +150,7 @@ fun ComposerField(
                         )
                     }
                 }
-                
+
                 DropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false },
@@ -159,7 +159,7 @@ fun ComposerField(
                 ) {
                     availableModels.forEach { model ->
                         DropdownMenuItem(
-                            text = { 
+                            text = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.Start,
@@ -204,6 +204,7 @@ fun ComposerField(
 
                 FloatingActionButton(
                     onClick = { if (text.text.isNotBlank()) { onSend(text.text); text = TextFieldValue("") } },
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .width(Dimensions.FABSize),
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -220,5 +221,3 @@ fun ComposerField(
         }
     }
 }
-
-

@@ -37,6 +37,7 @@ import com.oxidelabmobile.BuildConfig
 import com.oxidelabmobile.R
 import com.oxidelabmobile.ui.theme.OxideLabMobileTheme
 import com.oxidelabmobile.ui.theme.Spacing
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +69,7 @@ fun AboutScreen(
         bottomBar = {
             TextButton(
                 onClick = onNavigateUp,
+                shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = Color(0xFF1B1C3A)

@@ -1,0 +1,233 @@
+---
+description: Candle architectural patterns and code organization best practices
+alwaysApply: false
+---
+# Candle Architecture Patterns
+
+## Модульная архитектура
+
+### Организация проекта
+
+```
+src/
+├── main.rs                 # Точка входа приложения
+├── lib.rs                  # Публичные модули
+├── model/                  # Определения моделей
+├── layers/                 # Переиспользуемые слои
+├── utils/                  # Вспомогательные функции
+├── data/                   # Работа с данными
+└── training/               # Обучение моделей
+```
+
+### Определение модулей
+
+```rust
+// src/lib.rs
+pub mod model;
+pub mod layers;
+pub mod utils;
+pub mod data;
+pub mod training;
+```
+
+## Trait-based архитектура
+
+### Базовые трейты для моделей
+
+```rust
+use candle_core::{Tensor, Result, Device};
+
+/// Базовый трейт для всех моделей
+pub trait Model {
+    type Config;
+    fn new(config: Self::Config, device: &Device) -> Result<Self>
+    where
+        Self: Sized;
+    fn forward(&self, input: &Tensor) -> Result<Tensor>;
+    fn num_parameters(&self) -> usize;
+    fn device(&self) -> &Device;
+}
+
+/// Трейт для обучаемых моделей
+pub trait TrainableModel: Model {
+    fn parameters(&self) -> Vec<&Tensor>;
+    fn update_parameters(&mut self, gradients: &[Tensor]) -> Result<()>;
+}
+```
+
+### Трейты для слоев (упрощено)
+
+```rust
+use candle_core::Result;
+
+/// Базовый трейт для всех слоев
+pub trait Layer {
+    fn forward(&self, input: &Tensor) -> Result<Tensor>;
+}
+```
+
+## Паттерн Builder для моделей
+
+### Конфигурация моделей и Builder (пример Transformer)
+
+```rust
+use candle_core::{Device, Result};
+
+#[derive(Debug, Clone)]
+pub struct TransformerConfig {
+    pub hidden_size: usize,
+    pub num_layers: usize,
+}
+
+impl Default for TransformerConfig {
+    fn default() -> Self { Self { hidden_size: 768, num_layers: 12 } }
+}
+
+pub struct TransformerBuilder { config: TransformerConfig, }
+
+impl TransformerBuilder {
+    pub fn new() -> Self { Self { config: TransformerConfig::default() } }
+    pub fn hidden_size(mut self, size: usize) -> Self { self.config.hidden_size = size; self }
+    pub fn num_layers(mut self, layers: usize) -> Self { self.config.num_layers = layers; self }
+    // pub fn build... (детали опущены)
+}
+```
+
+## Паттерн Factory для создания моделей
+
+### Фабрика моделей (пример)
+
+```rust
+use candle_core::{Device, Result};
+
+#[derive(Debug, Clone)]
+pub enum ModelType { Transformer, CNN, RNN, MLP, }
+
+pub struct ModelFactory;
+
+impl ModelFactory {
+    pub fn create_model(
+        model_type: ModelType,
+        // config: ModelConfig, // Предполагается, что конфиг передается или берется из ModelType
+        device: &Device,
+    ) -> Result<Box<dyn Model>> { Ok(Box::new(DummyModel { device: device.clone() })) } // Упрощено
+}
+
+// Пример заглушки для Model
+struct DummyModel { device: Device }
+impl Model for DummyModel {
+    type Config = ();
+    fn new(_config: Self::Config, device: &Device) -> Result<Self> { Ok(DummyModel { device: device.clone() }) }
+    fn forward(&self, input: &Tensor) -> Result<Tensor> { Ok(input.clone()) }
+    fn num_parameters(&self) -> usize { 0 }
+    fn device(&self) -> &Device { &self.device }
+}
+```
+
+## Паттерн Strategy для оптимизаторов
+
+### Стратегии оптимизации (пример SGD)
+
+```rust
+use candle_core::{Tensor, Result, Device};
+
+pub trait Optimizer {
+    fn step(&mut self, parameters: &mut [Tensor], gradients: &[Tensor]) -> Result<()>;
+    fn learning_rate(&self) -> f32;
+    fn set_learning_rate(&mut self, lr: f32);
+}
+
+pub struct SGD {
+    learning_rate: f32,
+    momentum: f32,
+    velocity: Vec<Tensor>,
+}
+
+impl SGD {
+    pub fn new(learning_rate: f32, momentum: f32) -> Self { Self { learning_rate, momentum, velocity: Vec::new() } }
+}
+
+impl Optimizer for SGD {
+    fn step(&mut self, parameters: &mut [Tensor], gradients: &[Tensor]) -> Result<()> {
+        // ... Логика обновления параметров (упрощена)
+        Ok(())
+    }
+    fn learning_rate(&self) -> f32 { self.learning_rate }
+    fn set_learning_rate(&mut self, lr: f32) { self.learning_rate = lr; }
+}
+```
+
+## Паттерн Observer для мониторинга обучения
+
+### Система мониторинга (пример TrainingLogger)
+
+```rust
+use std::collections::HashMap;
+use candle_core::Result;
+
+pub trait TrainingObserver {
+    fn on_epoch_end(&mut self, epoch: usize, metrics: &HashMap<String, f32>);
+    fn on_batch_end(&mut self, batch: usize, loss: f32);
+}
+
+pub struct TrainingLogger;
+
+impl TrainingLogger {
+    pub fn new() -> Result<Self> { Ok(Self) }
+}
+
+impl TrainingObserver for TrainingLogger {
+    fn on_epoch_end(&mut self, epoch: usize, metrics: &HashMap<String, f32>) { println!("Эпоха {} завершена. Метрики: {:?}", epoch, metrics); }
+    fn on_batch_end(&mut self, batch: usize, loss: f32) { if batch % 100 == 0 { println!("Батч {}, Loss: {:.4}", batch, loss); } }
+}
+```
+
+## Error Handling архитектура
+
+### Иерархия ошибок (пример)
+
+```rust
+use thiserror::Error;
+use candle_core::Result;
+
+#[derive(Error, Debug)]
+pub enum ModelError {
+    #[error("Ошибка устройства: {0}")]
+    DeviceError(String),
+    #[error("Общая ошибка: {0}")]
+    Other(String),
+}
+
+impl From<candle_core::Error> for ModelError {
+    fn from(err: candle_core::Error) -> Self { ModelError::DeviceError(err.to_string()) }
+}
+pub type ModelResult<T> = Result<T, ModelError>;
+```
+
+## Dependency Injection
+
+### Контейнер зависимостей (упрощено)
+
+```rust
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+
+pub struct DIContainer { services: HashMap<TypeId, Box<dyn Any>>, }
+
+impl DIContainer {
+    pub fn new() -> Self { Self { services: HashMap::new() } }
+    pub fn register<T: 'static>(&mut self, service: T) { self.services.insert(TypeId::of::<T>(), Box::new(service)); }
+    pub fn get<T: 'static>(&self) -> Option<&T> { self.services.get(&TypeId::of::<T>())?.downcast_ref::<T>() }
+}
+```
+
+## Лучшие практики архитектуры
+
+1.  **Разделение ответственности**: Каждый модуль/структура должна иметь одну, четко определенную обязанность.
+2.  **Trait-based Design**: Используйте трейты для определения интерфейсов и обеспечения расширяемости.
+3.  **Иммутабельность по умолчанию**: Предпочитайте `&T` вместо `&mut T` и `val` вместо `var`.
+4.  **Builder Pattern**: Для создания сложных объектов с множеством параметров.
+5.  **Error Handling**: Используйте четкую иерархию ошибок и `Result` для их обработки.
+6.  **Dependency Injection**: Для управления зависимостями и улучшения тестируемости.
+
+Следуйте этим архитектурным паттернам для создания масштабируемых и поддерживаемых Candle приложений.
