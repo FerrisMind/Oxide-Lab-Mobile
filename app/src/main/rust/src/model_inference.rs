@@ -2,6 +2,7 @@
 //! Предоставляет движок, поддерживающий настройку параметров генерации
 //! и потоковый вывод токенов в Android через JNI.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use candle_core::Device;
@@ -56,6 +57,7 @@ pub trait StreamCallback: Send + Sync {
 pub struct InferenceEngine {
     model_snapshot: LoadedModelSnapshot,
     config: GenerationConfig,
+    stop_flag: Arc<AtomicBool>,
 }
 
 impl InferenceEngine {
@@ -64,6 +66,7 @@ impl InferenceEngine {
         Self {
             model_snapshot,
             config: GenerationConfig::default(),
+            stop_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -72,12 +75,34 @@ impl InferenceEngine {
         self.config = config;
     }
 
+    /// Устанавливает флаг остановки генерации.
+    pub fn stop_generation(&self) {
+        log::info!("Setting generation stop flag to true");
+        self.stop_flag.store(true, Ordering::SeqCst);
+        log::info!("Generation stop flag set successfully");
+    }
+
+    /// Сбрасывает флаг остановки генерации.
+    pub fn reset_stop_flag(&self) {
+        self.stop_flag.store(false, Ordering::SeqCst);
+    }
+
+    /// Проверяет, установлена ли остановка генерации.
+    pub fn is_stop_requested(&self) -> bool {
+        self.stop_flag.load(Ordering::SeqCst)
+    }
+
     /// Выполняет генерацию и возвращает полный результат строкой.
     pub fn generate_blocking(
         &self,
         prompt: &str,
         callback: Option<Arc<dyn StreamCallback>>,
     ) -> Result<String, InferenceError> {
+        log::info!("Starting text generation for prompt: {}", prompt);
+        // Сбрасываем флаг остановки в начале генерации
+        self.reset_stop_flag();
+        log::info!("Stop flag reset, beginning generation");
+
         let model = self.model_snapshot.model();
         let tokenizer = self.model_snapshot.tokenizer();
 
@@ -155,6 +180,14 @@ impl InferenceEngine {
         let eos_token = 151645u32; // Qwen3 EOS token
 
         for _ in 0..self.config.max_tokens {
+            // Проверяем флаг остановки на каждой итерации
+            let stop_requested = self.is_stop_requested();
+            log::debug!("Checking stop flag: {}", stop_requested);
+            if stop_requested {
+                log::info!("Generation stopped by user request");
+                break;
+            }
+
             if all_tokens.is_empty() || all_tokens.len() >= max_context_length {
                 break;
             }
@@ -192,6 +225,13 @@ impl InferenceEngine {
                 .map_err(|e| InferenceError::Backend(e.to_string()))?;
 
             log::info!("Generated token: {}, EOS token: {}", next_token, eos_token);
+
+            // Немедленная проверка флага остановки
+            if self.is_stop_requested() {
+                log::info!("Generation stopped by user request immediately after token generation");
+                // Не добавляем токен в список, если генерация остановлена
+                break;
+            }
 
             // Stop if we generated EOS token
             if next_token == eos_token {
@@ -294,6 +334,14 @@ impl InferenceEngine {
         let eos_token = 151645u32; // Qwen3 EOS token
 
         for _ in 0..self.config.max_tokens {
+            // Проверяем флаг остановки на каждой итерации
+            let stop_requested = self.is_stop_requested();
+            log::debug!("Checking stop flag: {}", stop_requested);
+            if stop_requested {
+                log::info!("Generation stopped by user request");
+                break;
+            }
+
             if all_tokens.is_empty() || all_tokens.len() >= max_context_length {
                 break;
             }
@@ -332,6 +380,13 @@ impl InferenceEngine {
 
             log::info!("Generated token: {}, EOS token: {}", next_token, eos_token);
 
+            // Немедленная проверка флага остановки
+            if self.is_stop_requested() {
+                log::info!("Generation stopped by user request immediately after token generation");
+                // Не добавляем токен в список, если генерация остановлена
+                break;
+            }
+
             // Stop if we generated EOS token
             if next_token == eos_token {
                 log::info!("EOS token generated, stopping generation");
@@ -361,6 +416,13 @@ impl InferenceEngine {
             cb.on_complete();
         }
 
+        log::info!(
+            "Gemma3 - Generated {} tokens, result length: {}",
+            all_tokens.len() - tokens.len(),
+            generated_text.len()
+        );
+        log::info!("Gemma3 - Final result: '{}'", generated_text);
+
         Ok(generated_text)
     }
 
@@ -382,7 +444,7 @@ struct ChatMessage {
 fn apply_chat_template(chat_template: &str, user_message: &str) -> Result<String, InferenceError> {
     log::info!("Applying chat template: {}", chat_template);
 
-    use minijinja::{Environment, context};
+    use minijinja::{context, Environment};
 
     // Создаем окружение MiniJinja
     let mut env = Environment::new();
@@ -406,7 +468,8 @@ fn apply_chat_template(chat_template: &str, user_message: &str) -> Result<String
             .map_err(|e| InferenceError::Backend(format!("Failed to add chat template: {}", e)))?;
 
         // Получаем шаблон
-        let tmpl = env.get_template("chat")
+        let tmpl = env
+            .get_template("chat")
             .map_err(|e| InferenceError::Backend(format!("Failed to get chat template: {}", e)))?;
 
         // Создаем контекст
@@ -416,8 +479,9 @@ fn apply_chat_template(chat_template: &str, user_message: &str) -> Result<String
         };
 
         // Рендерим шаблон
-        let formatted = tmpl.render(ctx)
-            .map_err(|e| InferenceError::Backend(format!("Failed to render chat template: {}", e)))?;
+        let formatted = tmpl.render(ctx).map_err(|e| {
+            InferenceError::Backend(format!("Failed to render chat template: {}", e))
+        })?;
 
         log::info!("Rendered chat template successfully");
         Ok(formatted)

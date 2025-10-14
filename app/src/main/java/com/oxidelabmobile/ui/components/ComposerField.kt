@@ -14,6 +14,8 @@ import androidx.compose.ui.res.painterResource
 import com.oxidelabmobile.R
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextFieldDefaults
@@ -53,13 +55,43 @@ fun ComposerField(
     onSend: (String) -> Unit,
     onSettings: () -> Unit,
     modifier: Modifier = Modifier,
-    modelName: String = "Нет модели",
+    modelName: String = "Выбрать модель",
     modelIconResId: Int = R.drawable.sparkle,
     availableModels: List<DownloadedModel> = emptyList(),
-    onModelSelected: (DownloadedModel) -> Unit = {}
+    onModelSelected: (DownloadedModel) -> Unit = {},
+    onModelUnload: () -> Unit = {},
+    isModelSelected: Boolean = modelName != "Выбрать модель",
+    isGenerating: Boolean = false,
+    onStopGeneration: () -> Unit = {}
 ) {
     var text by remember { mutableStateOf(TextFieldValue("")) }
     var expanded by remember { mutableStateOf(false) }
+
+    // Цвета для разных состояний
+    val buttonContainerColor = if (isModelSelected)
+        MaterialTheme.colorScheme.surfaceVariant
+    else
+        MaterialTheme.colorScheme.primaryContainer
+
+    val buttonContentColor = if (isModelSelected)
+        MaterialTheme.colorScheme.onSurfaceVariant
+    else
+        MaterialTheme.colorScheme.onPrimaryContainer
+
+    val fabContainerColor = if (isModelSelected)
+        MaterialTheme.colorScheme.primary
+    else
+        MaterialTheme.colorScheme.surfaceVariant
+
+    val fabContentColor = if (isModelSelected)
+        MaterialTheme.colorScheme.onPrimary
+    else
+        MaterialTheme.colorScheme.onSurfaceVariant
+
+    val iconTint = if (isModelSelected)
+        androidx.compose.ui.graphics.Color(0xFF1B1C3A)
+    else
+        MaterialTheme.colorScheme.onSurfaceVariant
 
     // Interaction source для отслеживания фокуса
     val interactionSource = remember { MutableInteractionSource() }
@@ -107,92 +139,101 @@ fun ComposerField(
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.Small),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left group: model selector button
-            Box(modifier = Modifier.padding(start = 8.dp)) {
-                Button(
-                    onClick = {
-                        if (availableModels.isNotEmpty()) {
-                            expanded = true
-                        }
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    ),
-                    modifier = Modifier
-                        .height(48.dp)
-                        .widthIn(min = 200.dp, max = 250.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = modelIconResId),
-                            contentDescription = "Model logo",
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Text(
-                            text = modelName,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontSize = 16.sp,
-                            maxLines = 1
-                        )
-                        Icon(
-                            painter = painterResource(id = R.drawable.caret_up),
-                            contentDescription = "Model selector",
-                            modifier = Modifier.size(20.dp)
-                        )
+            // Model selector button with dynamic width
+            Button(
+                onClick = {
+                    if (availableModels.isNotEmpty()) {
+                        expanded = true
                     }
+                },
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = buttonContainerColor,
+                    contentColor = buttonContentColor
+                ),
+                modifier = Modifier
+                    .height(48.dp)
+                    .weight(1f), // Take remaining space
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        painter = painterResource(id = modelIconResId),
+                        contentDescription = "Model logo",
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = modelName,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontSize = 16.sp,
+                        maxLines = 1
+                    )
+                    Icon(
+                        painter = painterResource(id = R.drawable.caret_up),
+                        contentDescription = "Model selector",
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
+            }
 
-                DropdownMenu(
-                    expanded = expanded,
-                    onDismissRequest = { expanded = false },
-                    modifier = Modifier.widthIn(min = 200.dp, max = 250.dp),
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ) {
-                    availableModels.forEach { model ->
-                        DropdownMenuItem(
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Start,
-                                    modifier = Modifier.fillMaxWidth()
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.width(280.dp), // Fixed width for dropdown
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                availableModels.forEach { model ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Start,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    painter = painterResource(id = model.iconResId),
+                                    contentDescription = "${model.name} Icon",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(start = 8.dp)
                                 ) {
-                                    Icon(
-                                        painter = painterResource(id = model.iconResId),
-                                        contentDescription = "${model.name} Icon",
-                                        modifier = Modifier.size(20.dp),
-                                        tint = MaterialTheme.colorScheme.primary
+                                    Text(
+                                        text = model.name,
+                                        fontSize = 14.sp,
+                                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                                     )
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth().padding(start = 8.dp)
-                                    ) {
-                                        Text(
-                                            text = model.name,
-                                            fontSize = 14.sp,
-                                            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                        )
-                                        Text(
-                                            text = "${model.size / 1024 / 1024}MB",
-                                            fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
+                                    Text(
+                                        text = "${model.size / 1024 / 1024}MB",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 }
-                            },
-                            onClick = {
-                                onModelSelected(model)
-                                expanded = false
                             }
-                        )
-                    }
+                        },
+                        onClick = {
+                            onModelSelected(model)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+
+            // Unload model button - only visible when model is loaded
+            if (isModelSelected) {
+                IconButton(onClick = { onModelUnload() }) {
+                    Icon(
+                        painter = painterResource(id = R.drawable.trash),
+                        contentDescription = "Unload model",
+                        tint = MaterialTheme.colorScheme.error
+                    )
                 }
             }
 
@@ -203,19 +244,41 @@ fun ComposerField(
                 }
 
                 FloatingActionButton(
-                    onClick = { if (text.text.isNotBlank()) { onSend(text.text); text = TextFieldValue("") } },
+                    onClick = {
+                        if (isGenerating) {
+                            onStopGeneration()
+                        } else if (text.text.isNotBlank() && isModelSelected) {
+                            onSend(text.text)
+                            text = TextFieldValue("")
+                        }
+                    },
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
                         .width(Dimensions.FABSize),
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    containerColor = fabContainerColor,
+                    contentColor = fabContentColor,
                     elevation = FloatingActionButtonDefaults.elevation()
                 ) {
-                Icon(
-                    painter = painterResource(id = R.drawable.arrow_up),
-                    contentDescription = "Send message",
-                    tint = androidx.compose.ui.graphics.Color(0xFF1B1C3A)
-                )
+                    if (isGenerating) {
+                        // Анимированная иконка остановки
+                        val rotation by animateFloatAsState(
+                            targetValue = 360f,
+                            animationSpec = tween(durationMillis = 1000, easing = androidx.compose.animation.core.LinearEasing),
+                            label = "rotation"
+                        )
+                        Icon(
+                            painter = painterResource(id = R.drawable.stop_circle),
+                            contentDescription = "Stop generation",
+                            tint = iconTint,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    } else {
+                        Icon(
+                            painter = painterResource(id = R.drawable.arrow_up),
+                            contentDescription = "Send message",
+                            tint = iconTint
+                        )
+                    }
                 }
             }
         }

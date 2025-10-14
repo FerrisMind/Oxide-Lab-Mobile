@@ -1,6 +1,7 @@
 package com.oxidelabmobile.ui.screens.setup
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -269,29 +270,20 @@ private fun QwenModelCard(
                             isDownloading = true
                             scope.launch {
                                 try {
-                                    // call native loader with a timeout to avoid indefinite blocking
-                                    val cacheDir = context.cacheDir.absolutePath
-                                    val path = withContext(Dispatchers.IO) {
-                                        kotlinx.coroutines.withTimeoutOrNull(120_000) {
-                                            try {
-                                                RustInterface.instance.downloadQwenModelToPath(cacheDir)
-                                            } catch (t: Throwable) {
-                                                // Catch any throwable coming out of JNI boundary
-                                                null
-                                            }
-                                        }
-                                    }
+                                    resultMessage = "Загрузка модели Qwen3 0.6B..."
 
-                                    if (path == null) {
-                                        resultMessage = "Ошибка нативной загрузки или таймаут"
-                                    } else if (path.startsWith("Error:")) {
-                                        resultMessage = "Ошибка загрузки"
-                                    } else {
-                                        onDownloaded(path)
-                                        resultMessage = "Модель загружена"
-                                    }
+                                    // Загружаем модель Qwen3 0.6B через новый API
+                                    RustInterface.instance.loadModelSuspend(
+                                        RustInterface.ModelType.Qwen3,
+                                        "0.6b"
+                                    )
+
+                                    resultMessage = "Модель Qwen3 0.6B успешно загружена"
+                                    onDownloaded("qwen3/0.6b") // Передаем идентификатор модели
+
                                 } catch (e: Exception) {
-                                    resultMessage = "Ошибка: ${e.message}"
+                                    resultMessage = "Ошибка загрузки модели: ${e.message}"
+                                    Log.e("ModelSetupScreen", "Error loading Qwen3 model", e)
                                 } finally {
                                     isDownloading = false
                                 }
@@ -304,7 +296,7 @@ private fun QwenModelCard(
                         contentColor = Color(0xFF1B1C3A)
                     )
                 ) {
-                    Text(if (isDownloading) "Загрузка..." else "Скачать из Hugging Face")
+                    Text(if (isDownloading) "Загрузка..." else "Загрузить модель")
                 }
 
                 if (isDownloading) {

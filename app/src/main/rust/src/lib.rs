@@ -3,6 +3,8 @@ use log::*;
 
 pub mod chatbot;
 pub mod jni_bridge;
+pub mod model_inference;
+pub mod model_manager;
 pub mod tests;
 use chatbot::ChatBot;
 
@@ -25,7 +27,7 @@ fn android_main(app: AndroidApp) {
     info!("Starting Oxide Lab Mobile with Candle integration");
 
     // Initialize our chat bot
-    let chat_bot = ChatBot::new();
+    let chat_bot = ChatBot::new(candle_core::Device::Cpu);
 
     loop {
         app.poll_events(Some(std::time::Duration::from_millis(500)), |event| {
@@ -73,10 +75,9 @@ fn android_main(app: AndroidApp) {
     }
 }
 
-fn run_candle_operations(chat_bot: &ChatBot) {
+fn run_candle_operations(_chat_bot: &ChatBot) {
     info!("Running Candle operations...");
     // This is where we would implement our Candle-based chat bot logic
-    let response = chat_bot.process_message("Hello from Candle!");
-    info!("Chat bot response: {}", response);
+    info!("Chat bot is ready for inference");
     info!("Candle operations completed");
 }

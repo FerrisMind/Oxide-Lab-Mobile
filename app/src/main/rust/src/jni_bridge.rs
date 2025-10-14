@@ -1,401 +1,330 @@
-use crate::chatbot::ChatBot;
-use crate::init_logging;
-use jni::objects::{JClass, JString};
+use std::ptr;
+use std::sync::{Arc, Mutex};
+
+use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
+use jni::sys::{jint, jstring};
 use jni::JNIEnv;
+use once_cell::sync::Lazy;
 
-/// JNI function for processing messages from Java/Kotlin
-#[no_mangle]
-pub extern "C" fn Java_com_oxidelabmobile_RustInterface_processMessage<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    message: JString<'local>,
-) -> JString<'local> {
-    // Convert JNI string to Rust string
-    let input: String = match env.get_string(&message) {
-        Ok(jni_string) => jni_string.into(),
-        Err(e) => {
-            log::error!("Failed to get Java string: {:?}", e);
-            return env
-                .new_string("Error: Failed to read input")
-                .expect("Failed to create error string");
-        }
-    };
+use crate::chatbot::ChatBot;
+use crate::model_inference::{GenerationConfig, InferenceError, StreamCallback};
+use crate::model_manager::ModelType;
 
-    // Process the message with our chat bot
-    let chat_bot = ChatBot::new();
-    let response = chat_bot.process_message(&input);
+/// Глобальное состояние чат-бота для JNI слоёв.
+struct BotState {
+    chatbot: ChatBot,
+}
 
-    // Convert Rust string back to JNI string
-    match env.new_string(response) {
-        Ok(jni_string) => jni_string,
-        Err(e) => {
-            log::error!("Failed to create Java string: {:?}", e);
-            env.new_string("Error: Failed to create response")
-                .expect("Failed to create error string")
+impl BotState {
+    fn singleton() -> &'static Mutex<Option<Self>> {
+        static INSTANCE: Lazy<Mutex<Option<BotState>>> = Lazy::new(|| Mutex::new(None));
+        &INSTANCE
+    }
+}
+
+fn init_bot() {
+    let mut guard = BotState::singleton().lock().expect("bot mutex poisoned");
+    if guard.is_none() {
+        let chatbot = ChatBot::default();
+        *guard = Some(BotState { chatbot });
+    }
+}
+
+fn with_bot<F, R>(f: F) -> R
+where
+    F: FnOnce(&ChatBot) -> R,
+{
+    init_bot();
+    let guard = BotState::singleton().lock().expect("bot mutex poisoned");
+    let state = guard.as_ref().expect("bot not initialized");
+    f(&state.chatbot)
+}
+
+/// Колбэк для потока генерации, вызывающий методы Java-объекта.
+struct JniStreamCallback {
+    java_vm: jni::JavaVM,
+    callback: GlobalRef,
+}
+
+impl JniStreamCallback {
+    fn with_attached_env<F>(&self, f: F)
+    where
+        F: FnOnce(&mut JNIEnv),
+    {
+        if let Ok(mut env) = self.java_vm.attach_current_thread() {
+            f(&mut env);
         }
     }
 }
 
-/// JNI function to download unsloth/Qwen3-0.6B-GGUF via hf-hub and return local path
-#[no_mangle]
-pub extern "C" fn Java_com_oxidelabmobile_RustInterface_downloadQwenModel<'local>(
-    env: JNIEnv<'local>,
-    _class: JClass<'local>,
-) -> JString<'local> {
-    // Initialize logging for Android
-    init_logging();
-
-    log::info!("Starting model download with default cache");
-
-    let result = safe_download_model();
-
-    match result {
-        Ok(path) => {
-            log::info!("Model downloaded successfully to: {:?}", path);
-            env.new_string(path).unwrap_or_else(|_| {
-                log::error!("Failed to create JNI string for path");
-                env.new_string("Error: failed to create path string")
-                    .unwrap()
-            })
-        }
-        Err(err_msg) => {
-            log::error!("Model download failed: {}", err_msg);
-            env.new_string(format!("Error: {}", err_msg))
-                .unwrap_or_else(|_| {
-                    log::error!("Failed to create JNI error string");
-                    env.new_string("Error: failed to create error string")
-                        .unwrap()
-                })
-        }
-    }
-}
-
-/// JNI: download model to a provided cache directory to avoid relying on defaults
-#[no_mangle]
-pub extern "C" fn Java_com_oxidelabmobile_RustInterface_downloadQwenModelTo<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    cache_dir: JString<'local>,
-) -> JString<'local> {
-    // Initialize logging for Android
-    init_logging();
-
-    log::info!("Starting model download with custom cache directory");
-
-    // Safely extract the cache directory string
-    let cache_dir_str: String = match env.get_string(&cache_dir) {
-        Ok(jni_string) => {
-            let rust_string: String = jni_string.into();
-            log::info!("Using cache directory: {}", rust_string);
-            rust_string
-        }
-        Err(e) => {
-            log::error!("Failed to get cache directory string: {:?}", e);
-            return env
-                .new_string("Error: Invalid cache directory path")
-                .expect("Failed to create error string");
-        }
-    };
-
-    // Validate cache directory path
-    if cache_dir_str.is_empty() {
-        log::error!("Cache directory path is empty");
-        return env
-            .new_string("Error: Cache directory path cannot be empty")
-            .expect("Failed to create error string");
-    }
-
-    let result = safe_download_model_to_path(&cache_dir_str);
-
-    match result {
-        Ok(path) => {
-            log::info!("Model downloaded successfully to: {:?}", path);
-            env.new_string(path).unwrap_or_else(|_| {
-                log::error!("Failed to create JNI string for path");
-                env.new_string("Error: failed to create path string")
-                    .unwrap()
-            })
-        }
-        Err(err_msg) => {
-            log::error!("Model download failed: {}", err_msg);
-            env.new_string(format!("Error: {}", err_msg))
-                .unwrap_or_else(|_| {
-                    log::error!("Failed to create JNI error string");
-                    env.new_string("Error: failed to create error string")
-                        .unwrap()
-                })
-        }
-    }
-}
-
-/// Safe wrapper for model download with default cache
-fn safe_download_model() -> Result<String, String> {
-    log::info!("Attempting model download with default cache directory");
-
-    let chat_bot = ChatBot::new();
-    chat_bot
-        .download_qwen3_06b_gguf()
-        .map(|p| {
-            log::info!("Model downloaded successfully with default cache: {:?}", p);
-            p.to_string_lossy().to_string()
-        })
-        .map_err(|e| {
-            log::error!("Model download failed: {}", e);
-            e.to_string()
-        })
-}
-
-/// Safe wrapper for model download with custom cache directory
-fn safe_download_model_to_path(cache_dir: &str) -> Result<String, String> {
-    log::info!(
-        "Attempting model download with custom cache directory: {}",
-        cache_dir
-    );
-
-    // For now, always fall back to default cache directory due to Android compatibility issues
-    // The HF Hub API has issues with Android's /data/user/0/... paths
-    log::warn!("Custom cache directory not supported on Android, using default HF Hub cache");
-    safe_download_model()
-}
-
-/// Safe wrapper for model download via Kotlin HTTP client
-fn safe_download_model_with_http(model_url: &str, cache_dir: &str) -> Result<String, String> {
-    log::info!(
-        "Model download via Kotlin HTTP client - URL: {}, Cache: {}",
-        model_url,
-        cache_dir
-    );
-
-    // This function will be called after Kotlin has already downloaded the model
-    // We just need to verify the file exists and return the path
-    let cache_path = std::path::PathBuf::from(cache_dir);
-
-    if !cache_path.exists() {
-        log::error!("Cache directory does not exist: {:?}", cache_path);
-        return Err("Cache directory does not exist".to_string());
-    }
-
-    // Look for common model file extensions
-    let model_extensions = ["gguf", "bin", "safetensors", "pt"];
-    for ext in &model_extensions {
-        let model_file = cache_path.join(format!("model.{}", ext));
-        if model_file.exists() {
-            log::info!("Found model file: {:?}", model_file);
-            return Ok(model_file.to_string_lossy().to_string());
-        }
-    }
-
-    log::error!("No model file found in cache directory: {:?}", cache_path);
-    Err("No model file found in cache directory".to_string())
-}
-
-/// Safe wrapper for model initialization from local file
-fn safe_initialize_model(model_path: &str) -> Result<String, String> {
-    log::info!("Initializing model from local file: {}", model_path);
-
-    let path = std::path::PathBuf::from(model_path);
-
-    if !path.exists() {
-        log::error!("Model file does not exist: {:?}", path);
-        return Err("Model file does not exist".to_string());
-    }
-
-    if !path.is_file() {
-        log::error!("Path is not a file: {:?}", path);
-        return Err("Path is not a file".to_string());
-    }
-
-    // Here we would initialize the Candle model
-    // For now, just return success
-    log::info!("Model file validation successful: {:?}", path);
-    Ok(format!(
-        "Model initialized successfully: {}",
-        path.to_string_lossy()
-    ))
-}
-
-#[no_mangle]
-pub extern "C" fn Java_com_oxidelabmobile_RustInterface_downloadModelWithHttp<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    model_url: JString<'local>,
-    cache_dir: JString<'local>,
-) -> JString<'local> {
-    // Initialize logging for Android
-    init_logging();
-
-    log::info!("Starting model download via Kotlin HTTP client");
-
-    // Safely extract the model URL string
-    let model_url_str: String = match env.get_string(&model_url) {
-        Ok(jni_string) => {
-            let rust_string: String = jni_string.into();
-            log::info!("Model URL: {}", rust_string);
-            rust_string
-        }
-        Err(e) => {
-            log::error!("Failed to get model URL string: {:?}", e);
-            return env
-                .new_string("Error: Invalid model URL")
-                .expect("Failed to create error string");
-        }
-    };
-
-    // Safely extract the cache directory string
-    let cache_dir_str: String = match env.get_string(&cache_dir) {
-        Ok(jni_string) => {
-            let rust_string: String = jni_string.into();
-            log::info!("Cache directory: {}", rust_string);
-            rust_string
-        }
-        Err(e) => {
-            log::error!("Failed to get cache directory string: {:?}", e);
-            return env
-                .new_string("Error: Invalid cache directory path")
-                .expect("Failed to create error string");
-        }
-    };
-
-    // Validate parameters
-    if model_url_str.is_empty() {
-        log::error!("Model URL is empty");
-        return env
-            .new_string("Error: Model URL cannot be empty")
-            .expect("Failed to create error string");
-    }
-
-    if cache_dir_str.is_empty() {
-        log::error!("Cache directory path is empty");
-        return env
-            .new_string("Error: Cache directory path cannot be empty")
-            .expect("Failed to create error string");
-    }
-
-    let result = safe_download_model_with_http(&model_url_str, &cache_dir_str);
-
-    match result {
-        Ok(path) => {
-            log::info!(
-                "Model download via Kotlin HTTP completed successfully: {:?}",
-                path
+impl StreamCallback for JniStreamCallback {
+    fn on_token(&self, token: &str) {
+        self.with_attached_env(|env| {
+            let _ = env.call_method(
+                self.callback.as_obj(),
+                "onToken",
+                "(Ljava/lang/String;)V",
+                &[JValue::Object(&JObject::from(
+                    env.new_string(token).unwrap(),
+                ))],
             );
-            env.new_string(path).unwrap_or_else(|_| {
-                log::error!("Failed to create JNI string for path");
-                env.new_string("Error: failed to create path string")
-                    .unwrap()
-            })
-        }
-        Err(err_msg) => {
-            log::error!("Model download via Kotlin HTTP failed: {}", err_msg);
-            env.new_string(format!("Error: {}", err_msg))
-                .unwrap_or_else(|_| {
-                    log::error!("Failed to create JNI error string");
-                    env.new_string("Error: failed to create error string")
-                        .unwrap()
-                })
-        }
+        });
+    }
+
+    fn on_complete(&self) {
+        self.with_attached_env(|env| {
+            let _ = env.call_method(self.callback.as_obj(), "onComplete", "()V", &[]);
+        });
+    }
+
+    fn on_error(&self, error: &str) {
+        self.with_attached_env(|env| {
+            let _ = env.call_method(
+                self.callback.as_obj(),
+                "onError",
+                "(Ljava/lang/String;)V",
+                &[JValue::Object(&JObject::from(
+                    env.new_string(error).unwrap(),
+                ))],
+            );
+        });
     }
 }
 
+fn jni_exception(env: &mut JNIEnv, message: &str) {
+    let _ = env.throw_new("java/lang/RuntimeException", message);
+}
+
+fn map_generation_config(env: &mut JNIEnv, config_obj: JObject) -> Option<GenerationConfig> {
+    let max_tokens = env
+        .call_method(&config_obj, "getMaxTokens", "()I", &[])
+        .ok()?;
+    let temperature = env
+        .call_method(&config_obj, "getTemperature", "()F", &[])
+        .ok()?;
+    let top_p = env.call_method(&config_obj, "getTopP", "()F", &[]).ok()?;
+    let repeat_penalty = env
+        .call_method(&config_obj, "getRepeatPenalty", "()F", &[])
+        .ok()?;
+
+    Some(GenerationConfig {
+        max_tokens: max_tokens.i().unwrap_or(512) as usize,
+        temperature: temperature.f().unwrap_or(0.7),
+        top_p: top_p.f().unwrap_or(0.9),
+        repeat_penalty: repeat_penalty.f().unwrap_or(1.1),
+        seed: 299792458,
+    })
+}
+
+fn model_type_from_jint(model_type: jint) -> Option<ModelType> {
+    match model_type {
+        0 => Some(ModelType::Qwen3),
+        1 => Some(ModelType::Gemma3),
+        _ => None,
+    }
+}
+
+fn handle_inference_error(env: &mut JNIEnv, error: InferenceError) -> jstring {
+    let msg = format!("Ошибка инференса: {}", error);
+    jni_exception(env, &msg);
+    env.new_string(msg)
+        .expect("failed to allocate error string")
+        .into_raw()
+}
+
+/// Загружает модель (Qwen3/Gemma3).
 #[no_mangle]
-pub extern "C" fn Java_com_oxidelabmobile_RustInterface_initializeModel<'local>(
-    mut env: JNIEnv<'local>,
-    _class: JClass<'local>,
-    model_path: JString<'local>,
-) -> JString<'local> {
-    // Initialize logging for Android
-    init_logging();
-
-    log::info!("Starting model initialization from local file");
-
-    // Safely extract the model path string
-    let model_path_str: String = match env.get_string(&model_path) {
-        Ok(jni_string) => {
-            let rust_string: String = jni_string.into();
-            log::info!("Model path: {}", rust_string);
-            rust_string
-        }
-        Err(e) => {
-            log::error!("Failed to get model path string: {:?}", e);
-            return env
-                .new_string("Error: Invalid model path")
-                .expect("Failed to create error string");
+pub extern "system" fn Java_com_oxidelabmobile_RustInterface_loadModel(
+    mut env: JNIEnv,
+    _class: JClass,
+    model_type: jint,
+    variant: JString,
+) {
+    let model_type = match model_type_from_jint(model_type) {
+        Some(t) => t,
+        None => {
+            jni_exception(&mut env, "Неизвестный тип модели");
+            return;
         }
     };
 
-    // Validate model path
-    if model_path_str.is_empty() {
-        log::error!("Model path is empty");
-        return env
-            .new_string("Error: Model path cannot be empty")
-            .expect("Failed to create error string");
-    }
-
-    let result = safe_initialize_model(&model_path_str);
-
-    match result {
-        Ok(message) => {
-            log::info!("Model initialization completed successfully: {}", message);
-            env.new_string(message).unwrap_or_else(|_| {
-                log::error!("Failed to create JNI string for message");
-                env.new_string("Error: failed to create message string")
-                    .unwrap()
-            })
+    let variant_str = match env.get_string(&variant) {
+        Ok(s) => s.to_str().unwrap_or("").to_owned(),
+        Err(_) => {
+            jni_exception(&mut env, "Не удалось прочитать variant");
+            return;
         }
-        Err(err_msg) => {
-            log::error!("Model initialization failed: {}", err_msg);
-            env.new_string(format!("Error: {}", err_msg))
-                .unwrap_or_else(|_| {
-                    log::error!("Failed to create JNI error string");
-                    env.new_string("Error: failed to create error string")
-                        .unwrap()
-                })
-        }
+    };
+
+    let result = with_bot(|bot| match model_type {
+        ModelType::Qwen3 => futures::executor::block_on(bot.load_qwen3(&variant_str)),
+        ModelType::Gemma3 => futures::executor::block_on(bot.load_gemma3(&variant_str)),
+    });
+
+    if let Err(err) = result {
+        jni_exception(&mut env, &format!("Ошибка загрузки модели: {}", err));
     }
 }
 
-/// JNI функция для запуска примера Candle
+/// Переключает активную модель.
 #[no_mangle]
-pub extern "C" fn Java_com_oxidelabmobile_RustInterface_runCandleExampleNative<'local>(
-    env: JNIEnv<'local>,
-    _class: JClass<'local>,
-) -> JString<'local> {
-    // Initialize logging for Android
-    init_logging();
-
-    log::info!("Running Candle example");
-
-    let result = safe_run_candle_example();
-
-    match result {
-        Ok(message) => {
-            log::info!("Candle example completed successfully: {}", message);
-            env.new_string(message).unwrap_or_else(|_| {
-                log::error!("Failed to create JNI string for result");
-                env.new_string("Error: failed to create result string")
-                    .unwrap()
-            })
+pub extern "system" fn Java_com_oxidelabmobile_RustInterface_switchModel(
+    mut env: JNIEnv,
+    _class: JClass,
+    model_type: jint,
+    variant: JString,
+) {
+    let model_type = match model_type_from_jint(model_type) {
+        Some(t) => t,
+        None => {
+            jni_exception(&mut env, "Неизвестный тип модели");
+            return;
         }
-        Err(err_msg) => {
-            log::error!("Candle example failed: {}", err_msg);
-            env.new_string(format!("Error: {}", err_msg))
-                .unwrap_or_else(|_| {
-                    log::error!("Failed to create JNI error string");
-                    env.new_string("Error: failed to create error string")
-                        .unwrap()
-                })
+    };
+
+    let variant_str = match env.get_string(&variant) {
+        Ok(s) => s.to_str().unwrap_or("").to_owned(),
+        Err(_) => {
+            jni_exception(&mut env, "Не удалось прочитать variant");
+            return;
+        }
+    };
+
+    let result =
+        with_bot(|bot| futures::executor::block_on(bot.switch_model(model_type, &variant_str)));
+    if let Err(err) = result {
+        jni_exception(&mut env, &format!("Ошибка переключения модели: {}", err));
+    }
+}
+
+/// Генерирует текст с опциональным потоковым колбэком.
+#[no_mangle]
+pub extern "system" fn Java_com_oxidelabmobile_RustInterface_generateText(
+    mut env: JNIEnv,
+    _class: JClass,
+    prompt: JString,
+    config: JObject,
+    callback: JObject,
+) -> jstring {
+    let prompt_str = match env.get_string(&prompt) {
+        Ok(s) => s.to_str().unwrap_or("").to_owned(),
+        Err(_) => {
+            jni_exception(&mut env, "Не удалось прочитать prompt");
+            return std::ptr::null_mut();
+        }
+    };
+
+    if let Some(config) = map_generation_config(&mut env, config) {
+        with_bot(|bot| bot.set_generation_params(config));
+    }
+
+    let callback_arc = if !callback.is_null() {
+        match env.new_global_ref(callback) {
+            Ok(global) => {
+                if let Ok(vm) = env.get_java_vm() {
+                    Some(Arc::new(JniStreamCallback {
+                        java_vm: vm,
+                        callback: global,
+                    }) as Arc<dyn StreamCallback>)
+                } else {
+                    jni_exception(&mut env, "Не удалось получить JavaVM");
+                    None
+                }
+            }
+            Err(_) => {
+                jni_exception(&mut env, "Не удалось создать глобальную ссылку на callback");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let result = with_bot(|bot| bot.generate_text(&prompt_str, callback_arc));
+    match result {
+        Ok(text) => env
+            .new_string(text)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut()),
+        Err(err) => handle_inference_error(&mut env, err),
+    }
+}
+
+/// Загружает модель из указанного пути к GGUF файлу.
+/// Токенизатор извлекается из метаданных GGUF файла.
+#[no_mangle]
+pub extern "system" fn Java_com_oxidelabmobile_RustInterface_loadModelFromPath(
+    mut env: JNIEnv,
+    _class: JClass,
+    model_path: JString,
+) {
+    let model_path_str = match env.get_string(&model_path) {
+        Ok(s) => s.to_str().unwrap_or("").to_owned(),
+        Err(_) => {
+            jni_exception(&mut env, "Не удалось прочитать model_path");
+            return;
+        }
+    };
+
+    let model_path = std::path::Path::new(&model_path_str);
+
+    let result = with_bot(|bot| bot.load_model_from_path(model_path));
+    match result {
+        Ok(model_type) => {
+            log::info!(
+                "Модель {:?} загружена из пути: {}",
+                model_type,
+                model_path_str
+            );
+        }
+        Err(err) => {
+            jni_exception(&mut env, &format!("Ошибка загрузки модели: {}", err));
         }
     }
 }
 
-/// Safe wrapper for running Candle example
-fn safe_run_candle_example() -> Result<String, String> {
-    log::info!("Running Candle example");
+/// JNI функция для выгрузки модели из памяти.
+#[no_mangle]
+pub extern "system" fn Java_com_oxidelabmobile_RustInterface_unloadModel(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    with_bot(|bot| bot.unload_model());
+    log::info!("Модель выгружена из памяти");
+}
 
-    // Простой пример работы с Candle
-    // В реальном приложении здесь будет инициализация модели и инференс
-    let result = "Candle example executed successfully! Model inference ready.";
+/// Останавливает текущую генерацию текста.
+#[no_mangle]
+pub extern "system" fn Java_com_oxidelabmobile_RustInterface_stopGeneration(
+    _env: JNIEnv,
+    _class: JClass,
+) {
+    log::info!("JNI stopGeneration called");
+    with_bot(|bot| {
+        if let Some(engine) = bot.get_engine().read().as_ref() {
+            log::info!("Setting stop flag on inference engine");
+            engine.stop_generation();
+            log::info!(
+                "Stop flag set, current state: {}",
+                engine.is_stop_requested()
+            );
+            log::info!("Generation stop requested successfully");
+        } else {
+            log::warn!("No active engine to stop generation");
+        }
+    });
+}
 
-    log::info!("Candle example result: {}", result);
-    Ok(result.to_string())
+#[no_mangle]
+pub extern "system" fn JNI_OnLoad(_vm: jni::JavaVM, _: *mut std::ffi::c_void) -> jint {
+    // Initialize logging for Android
+    android_logger::init_once(
+        android_logger::Config::default()
+            .with_max_level(log::LevelFilter::Info)
+            .with_tag("oxide_lab_mobile"),
+    );
+
+    init_bot();
+    log::info!("JNI_OnLoad: Rust logging initialized for Oxide Lab Mobile");
+    jni::sys::JNI_VERSION_1_6
 }

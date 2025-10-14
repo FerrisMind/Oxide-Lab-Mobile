@@ -134,7 +134,8 @@ impl ModelManager {
             let metadata = &content.metadata;
 
             // Ищем chat template в различных возможных ключах
-            metadata.get("tokenizer.chat_template")
+            metadata
+                .get("tokenizer.chat_template")
                 .or_else(|| metadata.get("chat_template"))
                 .or_else(|| metadata.get("tokenizer.ggml.chat_template"))
                 .and_then(|value| {
@@ -222,7 +223,8 @@ impl ModelManager {
             })?;
 
         // Извлекаем chat template из метаданных
-        let chat_template = content.metadata
+        let chat_template = content
+            .metadata
             .get("tokenizer.chat_template")
             .or_else(|| content.metadata.get("chat_template"))
             .or_else(|| content.metadata.get("tokenizer.ggml.chat_template"))

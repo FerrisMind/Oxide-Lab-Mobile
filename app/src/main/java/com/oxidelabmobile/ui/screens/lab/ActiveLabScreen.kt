@@ -25,12 +25,17 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -41,9 +46,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.size
+import android.util.Log
 import com.oxidelabmobile.R
 import com.oxidelabmobile.ModelDownloader
 import com.oxidelabmobile.DownloadedModel
+import com.oxidelabmobile.RustInterface
 import com.oxidelabmobile.ui.components.LabHeader
 import com.oxidelabmobile.ui.components.MessageBubble
 import com.oxidelabmobile.ui.components.MessageContextMenu
@@ -75,18 +82,24 @@ fun ActiveLabScreen(
 ) {
     val context = LocalContext.current
     val modelDownloader = remember { ModelDownloader(context) }
+    val rustInterface = remember { RustInterface.instance }
 
-    var messages by remember { mutableStateOf(listOf(
-        ChatMessage("Привет! Я готов помочь с анализом данных.", false, "14:30"),
-        ChatMessage("Отлично! Можешь объяснить принципы машинного обучения?", true, "14:31")
-    ))}
+    var messages by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var showSettingsSheet by remember { mutableStateOf(false) }
     var chatTitle by remember { mutableStateOf("") }
     var downloadedModels by remember { mutableStateOf<List<DownloadedModel>>(emptyList()) }
     var selectedModel by remember { mutableStateOf<DownloadedModel?>(null) }
     var showContextMenu by remember { mutableStateOf(false) }
     var selectedMessage by remember { mutableStateOf<ChatMessage?>(null) }
+    var isModelLoading by remember { mutableStateOf(false) }
+    var modelLoadingStatus by remember { mutableStateOf("") }
+    var modelToLoad by remember { mutableStateOf<DownloadedModel?>(null) }
+    var modelToUnload by remember { mutableStateOf(false) }
+    var isGenerating by remember { mutableStateOf(false) }
+    var currentAIResponse by remember { mutableStateOf<String?>(null) }
+    var generationWasStopped by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
 
     // Auto-scroll to bottom when new messages arrive
     LaunchedEffect(messages.size) {
@@ -95,18 +108,77 @@ fun ActiveLabScreen(
         }
     }
 
+    // Handle model loading when a model is selected
+    LaunchedEffect(modelToLoad) {
+        val model = modelToLoad ?: return@LaunchedEffect
+
+        isModelLoading = true
+        modelLoadingStatus = "Загрузка модели в память..."
+
+        try {
+            val modelPath = "/storage/emulated/0/models/${model.fileName}"
+            val initResult = rustInterface.initializeModelFromFileSuspend(modelPath)
+
+            if (initResult.startsWith("Error:", ignoreCase = false)) {
+                modelLoadingStatus = "Ошибка загрузки модели: ${initResult.substringAfter("Error: ")}"
+                // Сбрасываем выбор модели при ошибке
+                selectedModel = null
+            } else {
+                modelLoadingStatus = "Модель ${model.name} готова к работе!"
+                selectedModel = model
+                // Автоматически скрываем статус через 3 секунды
+                delay(3000)
+                modelLoadingStatus = ""
+            }
+        } catch (e: Exception) {
+            modelLoadingStatus = "Ошибка загрузки модели: ${e.message}"
+            selectedModel = null
+            // Оставляем сообщение об ошибке видимым дольше
+            delay(5000)
+            modelLoadingStatus = ""
+        } finally {
+            isModelLoading = false
+            modelToLoad = null // Сбрасываем флаг загрузки
+        }
+    }
+
+    // Handle model unloading
+    LaunchedEffect(modelToUnload) {
+        Log.d("ActiveLabScreen", "LaunchedEffect triggered for modelToUnload: $modelToUnload")
+        if (!modelToUnload) return@LaunchedEffect
+
+        try {
+            Log.d("ActiveLabScreen", "Starting model unload process")
+            // Выгружаем модель из памяти на уровне Rust
+            rustInterface.unloadModelSuspend()
+            Log.d("ActiveLabScreen", "Model unload completed successfully")
+
+            // Сбрасываем состояние UI
+            selectedModel = null
+            modelLoadingStatus = "Модель выгружена из памяти"
+            // Автоматически скрываем статус через 2 секунды
+            delay(2000)
+            modelLoadingStatus = ""
+        } catch (e: Exception) {
+            Log.e("ActiveLabScreen", "Error unloading model", e)
+            modelLoadingStatus = "Ошибка выгрузки модели: ${e.message}"
+            // Оставляем сообщение об ошибке видимым дольше
+            delay(5000)
+            modelLoadingStatus = ""
+        } finally {
+            modelToUnload = false // Сбрасываем флаг выгрузки
+            Log.d("ActiveLabScreen", "Model unload process finished, resetting flag")
+        }
+    }
+
     // Load downloaded models on startup
     LaunchedEffect(Unit) {
         modelDownloader.syncCacheWithFiles()
         downloadedModels = modelDownloader.getDownloadedModels()
-        // Select first model if available
-        if (downloadedModels.isNotEmpty() && selectedModel == null) {
-            selectedModel = downloadedModels.first()
-        }
+        // Don't auto-select model - let user choose manually
     }
 
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-    val coroutineScope = rememberCoroutineScope()
 
     // Fixed drawer width and a fraction that follows drawer progress exactly
     val drawerWidth = 256.dp
@@ -276,16 +348,38 @@ fun ActiveLabScreen(
                                 }
                         )
                     }
+
+                    // Show streaming AI response if generating
+                    if (isGenerating && !currentAIResponse.isNullOrEmpty()) {
+                        item {
+                            MessageBubble(
+                                text = currentAIResponse!!,
+                                isUser = false,
+                                timestamp = "...",
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                // Model loading status
+                if (isModelLoading || modelLoadingStatus.isNotEmpty()) {
+                    androidx.compose.material3.Text(
+                        text = if (isModelLoading) modelLoadingStatus else modelLoadingStatus,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isModelLoading) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = Spacing.Medium, vertical = Spacing.Small)
+                    )
                 }
 
                 // Input area
                 ComposerField(
                     onSend = { text ->
-                        if (text.isNotBlank()) {
+                        if (text.isNotBlank() && selectedModel != null && !isModelLoading && !isGenerating) {
                             val newMessage = ChatMessage(
                                 text = text,
                                 isUser = true,
-                                timestamp = "14:32"
+                                timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
                             )
                             // set chat title from first user message
                             if (chatTitle.isBlank()) {
@@ -293,22 +387,132 @@ fun ActiveLabScreen(
                             }
 
                             messages = messages + newMessage
-                            // Simulate AI response
-                            val aiResponse = ChatMessage(
-                                text = "Это отличный вопрос! Машинное обучение основано на...",
-                                isUser = false,
-                                timestamp = "14:32"
-                            )
-                            messages = messages + aiResponse
+
+                            // Generate AI response with streaming
+                            Log.d("ActiveLabScreen", "Starting AI generation")
+                            isGenerating = true
+                            currentAIResponse = ""
+                            generationWasStopped = false
+                            coroutineScope.launch {
+                                try {
+                                    rustInterface.generateTextStreaming(
+                                        text,
+                                        RustInterface.GenerationConfig(
+                                            maxTokens = 512,
+                                            temperature = 0.7f,
+                                            topP = 0.9f,
+                                            repeatPenalty = 1.1f
+                                        ),
+                                        onToken = { token ->
+                                            currentAIResponse = (currentAIResponse ?: "") + token
+                                        },
+                                        onComplete = {
+                                            Log.d("ActiveLabScreen", "Generation completed, currentAIResponse length: ${currentAIResponse?.length}, generationWasStopped: $generationWasStopped")
+                                            // Always save the response if we have any content, even if generation was stopped
+                                            if (!currentAIResponse.isNullOrEmpty()) {
+                                                val aiResponse = ChatMessage(
+                                                    text = currentAIResponse!!,
+                                                    isUser = false,
+                                                    timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                                                )
+                                                messages = messages + aiResponse
+                                                Log.d("ActiveLabScreen", "AI response saved to messages")
+                                            } else {
+                                                Log.w("ActiveLabScreen", "No AI response to save")
+                                            }
+                                            // Reset state
+                                            currentAIResponse = null
+                                            isGenerating = false
+                                            generationWasStopped = false
+                                            Log.d("ActiveLabScreen", "Generation state reset")
+                                        },
+                                        onError = { error ->
+                                            val errorMessage = ChatMessage(
+                                                text = "Произошла ошибка при генерации ответа: $error",
+                                                isUser = false,
+                                                timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                                            )
+                                            messages = messages + errorMessage
+                                            currentAIResponse = null
+                                        }
+                                    )
+                                } catch (e: Exception) {
+                                    val errorMessage = ChatMessage(
+                                        text = "Произошла ошибка при генерации ответа: ${e.message}",
+                                        isUser = false,
+                                        timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                                    )
+                                    messages = messages + errorMessage
+                                    currentAIResponse = null
+                                } finally {
+                                    isGenerating = false
+                                    generationWasStopped = false
+                                }
+                            }
                         }
                     },
                     onSettings = { showSettingsSheet = true },
                     modifier = Modifier.padding(Spacing.Medium),
-                    modelName = selectedModel?.name ?: "Нет модели",
+                    modelName = if (isModelLoading) "Загрузка..." else (selectedModel?.name ?: "Выбрать модель"),
                     modelIconResId = selectedModel?.iconResId ?: R.drawable.sparkle,
                     availableModels = downloadedModels,
                     onModelSelected = { model ->
-                        selectedModel = model
+                        // Не позволяем выбирать модель во время загрузки другой
+                        if (isModelLoading) return@ComposerField
+
+                        // Устанавливаем модель для загрузки - LaunchedEffect обработает её
+                        modelToLoad = model
+                    },
+                    onModelUnload = {
+                        // Устанавливаем флаг выгрузки модели - LaunchedEffect обработает её
+                        Log.d("ActiveLabScreen", "Model unload button clicked, selectedModel: ${selectedModel?.name}, current modelToUnload: $modelToUnload")
+                        if (!modelToUnload) {
+                            modelToUnload = true
+                            Log.d("ActiveLabScreen", "Set modelToUnload to true")
+                        } else {
+                            Log.d("ActiveLabScreen", "modelToUnload was already true")
+                        }
+                    },
+                    isModelSelected = selectedModel != null,
+                    isGenerating = isGenerating,
+                    onStopGeneration = {
+                        // Stop generation on the Rust backend
+                        Log.d("ActiveLabScreen", "Stop generation button clicked, isGenerating: $isGenerating, generationWasStopped: $generationWasStopped")
+                        if (!generationWasStopped) {
+                            generationWasStopped = true
+                            Log.d("ActiveLabScreen", "Setting generationWasStopped to true")
+                            coroutineScope.launch {
+                                try {
+                                    Log.d("ActiveLabScreen", "Calling stopGenerationSuspend()")
+                                    // Вызываем остановку несколько раз для надежности
+                                    repeat(3) {
+                                        rustInterface.stopGenerationSuspend()
+                                        delay(10)
+                                    }
+                                    Log.d("ActiveLabScreen", "Stop generation requested successfully (multiple calls)")
+                                    // Add a small delay to show the stop effect
+                                    delay(200)
+                                    if (!currentAIResponse.isNullOrEmpty()) {
+                                        Log.d("ActiveLabScreen", "Generation stopped, saving partial response")
+                                        val aiResponse = ChatMessage(
+                                            text = currentAIResponse!!,
+                                            isUser = false,
+                                            timestamp = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                                        )
+                                        messages = messages + aiResponse
+                                        currentAIResponse = null
+                                    }
+                                    isGenerating = false
+                                } catch (e: Exception) {
+                                    Log.e("ActiveLabScreen", "Error stopping generation", e)
+                                    // If stopping fails, at least update UI state
+                                    isGenerating = false
+                                    currentAIResponse = null
+                                }
+                            }
+                        } else {
+                            Log.d("ActiveLabScreen", "Generation was already stopped")
+                        }
                     }
                 )
             }

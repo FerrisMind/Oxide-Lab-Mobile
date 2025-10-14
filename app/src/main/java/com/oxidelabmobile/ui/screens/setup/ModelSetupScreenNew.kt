@@ -238,21 +238,11 @@ fun ModelSetupScreenNew(
                                                         )
 
                                                         if (modelPath != null) {
-                                                            downloadStatus = "Модель загружена, инициализация..."
-                                                            downloadProgress = 0.8f
-
-                                                            // Инициализируем модель в Rust
-                                                            val initResult = rustInterface.initializeModelFromFile(modelPath)
-
-                                                            if (initResult.startsWith("Error:")) {
-                                                                downloadStatus = "Ошибка инициализации: $initResult"
-                                                            } else {
-                                                                downloadStatus = "Модель успешно инициализирована!"
-                                                                downloadProgress = 1.0f
-                                                                downloadedModelPath = modelPath
-                                                                isModelDownloaded = true
-                                                                modelFileSize = modelDownloader.getModelFileSize(fileName)
-                                                            }
+                                                            downloadStatus = "Модель успешно загружена!"
+                                                            downloadProgress = 1.0f
+                                                            downloadedModelPath = modelPath
+                                                            isModelDownloaded = true
+                                                            modelFileSize = modelDownloader.getModelFileSize(fileName)
                                                         } else {
                                                             downloadStatus = "Ошибка загрузки модели"
                                                         }
@@ -303,7 +293,7 @@ fun ModelSetupScreenNew(
                                             onClick = {
                                                 scope.launch {
                                                     try {
-                                                        val result = rustInterface.runCandleExample()
+                                                        val result = rustInterface.runCandleExampleSuspend()
                                                         downloadStatus = "Результат: $result"
                                                     } catch (e: Exception) {
                                                         downloadStatus = "Ошибка выполнения: ${e.message}"
@@ -476,7 +466,7 @@ fun ModelSetupScreenNew(
                                         onClick = {
                                             scope.launch {
                                                 try {
-                                                    val result = rustInterface.runCandleExample()
+                                                    val result = rustInterface.runCandleExampleSuspend()
                                                     gemmaDownloadStatus = "Результат: $result"
                                                 } catch (e: Exception) {
                                                     gemmaDownloadStatus = "Ошибка выполнения: ${e.message}"
