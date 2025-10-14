@@ -1,5 +1,5 @@
 use std::ptr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use jni::objects::{GlobalRef, JClass, JObject, JString, JValue};
 use jni::sys::{jint, jstring};
@@ -10,34 +10,12 @@ use crate::chatbot::ChatBot;
 use crate::model_inference::{GenerationConfig, InferenceError, StreamCallback};
 use crate::model_manager::ModelType;
 
-/// Глобальное состояние чат-бота для JNI слоёв.
-struct BotState {
-    chatbot: ChatBot,
-}
-
-impl BotState {
-    fn singleton() -> &'static Mutex<Option<Self>> {
-        static INSTANCE: Lazy<Mutex<Option<BotState>>> = Lazy::new(|| Mutex::new(None));
-        &INSTANCE
-    }
-}
-
-fn init_bot() {
-    let mut guard = BotState::singleton().lock().expect("bot mutex poisoned");
-    if guard.is_none() {
-        let chatbot = ChatBot::default();
-        *guard = Some(BotState { chatbot });
-    }
-}
-
 fn with_bot<F, R>(f: F) -> R
 where
     F: FnOnce(&ChatBot) -> R,
 {
-    init_bot();
-    let guard = BotState::singleton().lock().expect("bot mutex poisoned");
-    let state = guard.as_ref().expect("bot not initialized");
-    f(&state.chatbot)
+    static CHATBOT: Lazy<Arc<ChatBot>> = Lazy::new(|| Arc::new(ChatBot::default()));
+    f(Lazy::force(&CHATBOT).as_ref())
 }
 
 /// Колбэк для потока генерации, вызывающий методы Java-объекта.

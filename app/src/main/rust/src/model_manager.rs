@@ -122,8 +122,12 @@ impl ModelManager {
         let model_path = self.validate_model_path(&model_dir)?;
         let tokenizer_path = self.validate_tokenizer_path(&model_dir)?;
 
-        let tokenizer = tokenizers::Tokenizer::from_file(&tokenizer_path)
+        let mut tokenizer = tokenizers::Tokenizer::from_file(&tokenizer_path)
             .map_err(|e| ModelManagerError::Initialization(e.to_string()))?;
+        tokenizer.with_pre_tokenizer(Some(
+            tokenizers::pre_tokenizers::byte_level::ByteLevel::default(),
+        ));
+        tokenizer.with_decoder(Some(tokenizers::decoders::byte_level::ByteLevel::default()));
 
         // Извлекаем chat template из метаданных GGUF файла
         let chat_template = {
@@ -351,11 +355,10 @@ impl ModelManager {
                 let mut tokens = Vec::new();
                 for value in arr {
                     if let gguf_file::Value::String(s) = value {
-                        // Обрабатываем специальные токены как в candle-pyo3
                         let processed = if s == "<0x0A>" {
                             "\n".to_string()
                         } else {
-                            s.replace("▁", " ")
+                            s.clone()
                         };
                         tokens.push(processed);
                     }
@@ -452,19 +455,11 @@ impl ModelManager {
             });
 
             let tokenizer_bytes = tokenizer_config.to_string().into_bytes();
-            let tokenizer = tokenizers::Tokenizer::from_bytes(tokenizer_bytes).ok()?;
-
-            // Добавляем специальные токены если они есть
-            if let Some(gguf_file::Value::U32(eos_id)) = metadata.get("tokenizer.ggml.eos_token_id")
-            {
-                // EOS token уже должен быть в словаре
-                log::info!("EOS token ID: {}", eos_id);
-            }
-            if let Some(gguf_file::Value::U32(bos_id)) = metadata.get("tokenizer.ggml.bos_token_id")
-            {
-                log::info!("BOS token ID: {}", bos_id);
-            }
-
+            let mut tokenizer = tokenizers::Tokenizer::from_bytes(tokenizer_bytes).ok()?;
+            tokenizer.with_pre_tokenizer(Some(
+                tokenizers::pre_tokenizers::byte_level::ByteLevel::default(),
+            ));
+            tokenizer.with_decoder(Some(tokenizers::decoders::byte_level::ByteLevel::default()));
             tokenizer
         } else {
             log::info!("Creating Unigram tokenizer (no merges found)");
@@ -485,7 +480,12 @@ impl ModelManager {
 
             let unigram =
                 tokenizers::models::unigram::Unigram::from(vocab_vec, None, false).ok()?;
-            tokenizers::Tokenizer::new(unigram)
+            let mut tokenizer = tokenizers::Tokenizer::new(unigram);
+            tokenizer.with_pre_tokenizer(Some(
+                tokenizers::pre_tokenizers::byte_level::ByteLevel::default(),
+            ));
+            tokenizer.with_decoder(Some(tokenizers::decoders::byte_level::ByteLevel::default()));
+            tokenizer
         };
 
         Some(tokenizer)
