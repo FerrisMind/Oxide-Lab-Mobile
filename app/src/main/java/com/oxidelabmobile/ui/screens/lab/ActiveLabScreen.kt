@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,7 +33,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -44,7 +41,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Icon
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.size
 import android.util.Log
 import com.oxidelabmobile.R
@@ -60,10 +56,8 @@ import com.oxidelabmobile.ui.theme.OxideLabMobileTheme
 import com.oxidelabmobile.ui.theme.Spacing
 
 // Новые импорты для синхронного отслеживания прогресса drawer и offset
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.collect
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 data class ChatMessage(
